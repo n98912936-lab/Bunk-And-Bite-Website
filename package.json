@@ -1,0 +1,15 @@
+{
+  "name": "bunk-and-bite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bunk And Bite restaurant ordering website",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "razorpay": "^2.9.6"
+  }
+}
