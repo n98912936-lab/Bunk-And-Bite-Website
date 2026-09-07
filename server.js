@@ -4,6 +4,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 const Razorpay = require("razorpay");
 const Order = require("./models/Order");
+const Product = require("./models/Product");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,14 +34,85 @@ function validPhone(phone) {
   return /^[6-9]\d{9}$/.test(String(phone || ""));
 }
 
+// ---------------- Admin auth ----------------
+// The admin panel sends the password back on every request in the
+// 'x-admin-key' header. We just compare it to ADMIN_PASSWORD in .env.
+function requireAdmin(req, res, next) {
+  if (!process.env.ADMIN_PASSWORD) {
+    return res.status(503).json({ error: "Admin panel is not configured. Add ADMIN_PASSWORD to .env." });
+  }
+  const key = req.header("x-admin-key");
+  if (!key || key !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Invalid admin password." });
+  }
+  next();
+}
+
 app.get("/api/health", (req,res) => {
   res.json({
     ok: true,
     dbConnected: mongoose.connection.readyState === 1,
-    paymentConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+    paymentConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+    adminConfigured: Boolean(process.env.ADMIN_PASSWORD)
   });
 });
 
+app.post("/api/admin/login", (req, res) => {
+  if (!process.env.ADMIN_PASSWORD) {
+    return res.status(503).json({ error: "Admin panel is not configured. Add ADMIN_PASSWORD to .env." });
+  }
+  const { password } = req.body;
+  if (password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Incorrect password." });
+  }
+  res.json({ ok: true });
+});
+
+// ---------------- Products (public read) ----------------
+app.get("/api/products", async (req, res) => {
+  const products = await Product.find().sort({ category: 1, name: 1 });
+  res.json(products);
+});
+
+// ---------------- Products (admin write) ----------------
+app.post("/api/admin/products", requireAdmin, async (req, res) => {
+  try {
+    const body = req.body;
+    if (!body.id || !body.name || !body.category) {
+      return res.status(400).json({ error: "id, name and category are required." });
+    }
+    const exists = await Product.findOne({ id: body.id });
+    if (exists) return res.status(400).json({ error: "A product with this id already exists." });
+    const product = await Product.create(body);
+    res.status(201).json(product);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Unable to create product." });
+  }
+});
+
+app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
+  try {
+    const product = await Product.findOneAndUpdate(
+      { id: req.params.id },
+      { $set: req.body },
+      { new: true }
+    );
+    if (!product) return res.status(404).json({ error: "Product not found." });
+    res.json(product);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Unable to update product." });
+  }
+});
+
+app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
+  const result = await Product.findOneAndDelete({ id: req.params.id });
+  if (!result) return res.status(404).json({ error: "Product not found." });
+  res.json({ ok: true });
+});
+
+// ---------------- Orders ----------------
 app.post("/api/orders", async (req,res) => {
   try {
     const { customer, items, totals, address, outlet, paymentMethod } = req.body;
