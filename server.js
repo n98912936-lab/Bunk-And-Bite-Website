@@ -3,11 +3,58 @@ const crypto = require("crypto");
 const path = require("path");
 const mongoose = require("mongoose");
 const Razorpay = require("razorpay");
+const nodemailer = require("nodemailer");
 const Order = require("./models/Order");
 const Product = require("./models/Product");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ---------------- Email notification setup ----------------
+// Sends an email to the shop owner every time a new order comes in.
+// Uses a Gmail account + an "App Password" (set in .env / Render env vars).
+let mailer = null;
+if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+  mailer = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD
+    }
+  });
+} else {
+  console.warn("Email notifications are OFF. Add GMAIL_USER and GMAIL_APP_PASSWORD to .env to enable them.");
+}
+
+async function sendOrderEmail(order) {
+  if (!mailer) return;
+  const itemsList = order.items
+    .map(it => `- ${it.name} x${it.qty} (₹${it.lineTotal ?? ""})`)
+    .join("\n");
+  const notifyTo = process.env.NOTIFY_EMAIL || process.env.GMAIL_USER;
+  try {
+    await mailer.sendMail({
+      from: `"Bunk And Bite" <${process.env.GMAIL_USER}>`,
+      to: notifyTo,
+      subject: `🍕 New Order ${order.id} — ₹${order.totals?.grandTotal ?? ""}`,
+      text:
+`New order received!
+
+Order ID: ${order.id}
+Customer: ${order.customer.name} (${order.customer.phone})
+Payment: ${order.paymentMethod.toUpperCase()}
+Address: ${order.address?.text || ""}
+
+Items:
+${itemsList}
+
+Grand Total: ₹${order.totals?.grandTotal ?? ""}`
+    });
+    console.log(`Notification email sent for order ${order.id}`);
+  } catch (e) {
+    console.error("Failed to send notification email:", e.message);
+  }
+}
 
 // ---------------- Database connection ----------------
 if (!process.env.MONGODB_URI) {
@@ -53,7 +100,8 @@ app.get("/api/health", (req,res) => {
     ok: true,
     dbConnected: mongoose.connection.readyState === 1,
     paymentConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
-    adminConfigured: Boolean(process.env.ADMIN_PASSWORD)
+    adminConfigured: Boolean(process.env.ADMIN_PASSWORD),
+    emailConfigured: Boolean(mailer)
   });
 });
 
@@ -172,6 +220,7 @@ app.post("/api/orders", async (req,res) => {
     }
 
     console.log(`NEW COD ORDER ${order.id} | ${order.customer.name} | ₹${order.totals.grandTotal}`);
+    sendOrderEmail(order);
     res.status(201).json({ order });
   } catch (e) {
     console.error(e);
@@ -200,6 +249,7 @@ app.post("/api/payment/verify", async (req,res) => {
     await order.save();
 
     console.log(`PAID ORDER ${order.id} | payment ${razorpay_payment_id}`);
+    sendOrderEmail(order);
     res.json({ok:true, order});
   } catch (e) {
     console.error(e);
