@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "express": "^5.1.0",
+    "mongoose": "^8.9.0",
     "razorpay": "^2.9.6"
   }
 }
