@@ -770,10 +770,10 @@ const DATA = {
     { id:"ds-001", name:"Chocolate Lava Cake", category:"desserts", desc:"Warm cake with a molten chocolate centre.", veg:true, available:true, featured:true, rating:4.7, emoji:"🍰", customizable:false, price:99 },
     { id:"ds-002", name:"Brownie", category:"desserts", desc:"Fudgy, rich and chocolatey.", veg:true, available:true, featured:false, rating:4.5, emoji:"🍫", customizable:false, price:89 },
 
-    { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", customizable:false, price:249 },
-    { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", customizable:false, price:349 },
-    { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", customizable:false, price:499 },
-    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", customizable:false, price:699 }
+    { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", customizable:false, comboPizzaCount:1, price:249 },
+    { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", customizable:false, comboPizzaCount:1, price:349 },
+    { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", customizable:false, comboPizzaCount:2, price:499 },
+    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", customizable:false, comboPizzaCount:2, price:699 }
   ]
 };
 
@@ -802,6 +802,7 @@ const state = {
 
 let currentModalProduct = null;
 let modalState = { size:"medium", crust:"regular", extraCheese:false, toppings:[], qty:1, instructions:"" };
+let comboModalState = { pizzas:[], qty:1 };
 let adminTab = "overview";
 let trackingTimer = null;
 
@@ -939,7 +940,7 @@ function productCardHTML(p, opts={}){
     <div class="meta"><span class="rating">★ ${p.rating}</span></div>
     <div class="row-bottom">
       <div class="price">${priceLabel}</div>
-      <button class="btn btn-primary btn-sm" ${!p.available?'disabled':''} onclick="handleProductClick('${p.id}')">${p.available? (p.customizable?'Customize':'Add') : 'Sold Out'}</button>
+      <button class="btn btn-primary btn-sm" ${!p.available?'disabled':''} onclick="handleProductClick('${p.id}')">${p.available? ((p.customizable||p.comboPizzaCount)?'Customize':'Add') : 'Sold Out'}</button>
     </div>
   </div>`;
 }
@@ -1001,6 +1002,7 @@ function renderMenuGrid(){
 function handleProductClick(id){
   const p = findProduct(id);
   if(!p.available){ return; }
+  if(p.comboPizzaCount){ openComboModal(p); return; }
   if(!p.customizable){
     addToCart(p, { size:null, crust:null, extraCheese:false, toppings:[], qty:1, instructions:'' });
     toast(p.name + " added to cart");
@@ -1012,6 +1014,66 @@ function openProductModal(p){
   currentModalProduct = p;
   modalState = { size:'medium', crust:'regular', extraCheese:false, toppings:[], qty:1, instructions:'' };
   renderModal();
+}
+function openComboModal(p){
+  currentModalProduct = p;
+  const firstPizza = DATA.products.find(x=>x.category==='pizza' && x.available);
+  comboModalState = { pizzas: Array(p.comboPizzaCount).fill(firstPizza ? firstPizza.id : ''), qty: 1 };
+  renderComboModal();
+}
+function renderComboModal(){
+  const p = currentModalProduct;
+  const root = document.getElementById('modalRoot');
+  const pizzaOptions = DATA.products.filter(x=>x.category==='pizza' && x.available);
+  root.innerHTML = `
+  <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-hero">${plateHTML(p)}</div>
+      <div class="modal-body">
+        <h3>${p.name}</h3>
+        <p class="desc">${p.desc}</p>
+
+        ${comboModalState.pizzas.map((pid,idx)=>`
+          <div class="opt-group">
+            <div class="lbl">Choose Your Pizza${comboModalState.pizzas.length>1? ' ' + (idx+1) : ''}</div>
+            <select class="instr" style="height:46px;padding:0 12px;" onchange="setComboPizza(${idx}, this.value)">
+              ${pizzaOptions.map(op=>`<option value="${op.id}" ${op.id===pid?'selected':''}>${op.name}</option>`).join('')}
+            </select>
+          </div>
+        `).join('')}
+
+        <div class="opt-group">
+          <div class="lbl">Quantity</div>
+          <div class="qty-control">
+            <button onclick="changeComboQty(-1)">−</button>
+            <span id="modalQtyLabel">${comboModalState.qty}</span>
+            <button onclick="changeComboQty(1)">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="tot"><small>Total</small>${rupee(p.price*comboModalState.qty)}</div>
+        <button class="btn btn-primary" onclick="confirmComboAddToCart()">Add to Cart</button>
+      </div>
+    </div>
+  </div>`;
+}
+function setComboPizza(idx, pid){ comboModalState.pizzas[idx] = pid; }
+function changeComboQty(delta){ comboModalState.qty = Math.max(1, comboModalState.qty+delta); renderComboModal(); }
+function confirmComboAddToCart(){
+  const p = currentModalProduct;
+  const pizzaNames = comboModalState.pizzas.map(pid=>{ const pr = DATA.products.find(x=>x.id===pid); return pr ? pr.name : ''; }).filter(Boolean);
+  state.cart.push({
+    lineId: 'l' + Date.now() + Math.random().toString(16).slice(2),
+    productId: p.id, name: p.name, emoji: p.emoji, img: p.img,
+    size:null, crust:null, extraCheese:false, toppings:[],
+    qty: comboModalState.qty, instructions:'', comboPizzas: pizzaNames,
+    unitPrice: p.price, lineTotal: p.price*comboModalState.qty
+  });
+  updateStickyCart();
+  toast(p.name + " added to cart");
+  closeModal();
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; currentModalProduct = null; }
 function calcModalTotal(){
@@ -1180,6 +1242,7 @@ function updateStickyCart(){
 }
 function customizationSummary(item){
   const parts = [];
+  if(item.comboPizzas && item.comboPizzas.length){ parts.push('Pizza: ' + item.comboPizzas.join(' + ')); }
   if(item.size) parts.push(item.size.charAt(0).toUpperCase()+item.size.slice(1));
   if(item.crust && item.crust!=='regular'){ const c = DATA.crusts.find(x=>x.id===item.crust); if(c) parts.push(c.label); }
   if(item.extraCheese) parts.push('Extra Cheese');
