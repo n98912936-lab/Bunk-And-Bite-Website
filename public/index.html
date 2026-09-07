@@ -510,7 +510,6 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           <div id="manualAddrFields" class="hide">
             <div class="field"><label>Full Address</label><textarea id="addrText" rows="2" placeholder="House no, street, area..."></textarea></div>
             <div class="field"><label>Pincode</label><input id="addrPin" placeholder="e.g. 411046"></div>
-            <button class="btn btn-secondary btn-sm" onclick="saveManualAddress()">Save Address</button>
           </div>
           <div id="addrStatus" style="font-size:13px;color:var(--ink-soft);margin-top:6px;"></div>
         </div>
@@ -574,16 +573,14 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== ADMIN =================== -->
 <main id="screen-admin" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>Admin Dashboard</h1><p>Manage your menu, orders and more — no code changes needed.</p></div>
-    <div id="adminLoginBox"></div>
-    <div class="admin-wrap hide" id="adminWrap">
+    <div class="screen-hero"><h1>Admin Dashboard</h1><p>Demo Admin — changes are stored only for this session.</p></div>
+    <div class="admin-wrap">
       <div class="admin-side">
         <button class="active" data-tab="overview" onclick="setAdminTab('overview')">📊 Overview</button>
         <button data-tab="products" onclick="setAdminTab('products')">🍕 Products</button>
         <button data-tab="orders" onclick="setAdminTab('orders')">🧾 Orders</button>
         <button data-tab="outlets" onclick="setAdminTab('outlets')">🏬 Outlets</button>
         <button data-tab="coupons" onclick="setAdminTab('coupons')">🏷️ Coupons</button>
-        <button onclick="adminLogout()" style="color:var(--red);margin-top:10px;">🚪 Logout</button>
       </div>
       <div id="adminContent"></div>
     </div>
@@ -681,8 +678,8 @@ const DATA = {
       longitude: 73.8677,
       phone: "9284434916",
       whatsapp: "9284434916",
-      openingTime: "15:00",
-      closingTime: "22:00",
+      openingTime: "00:00",
+      closingTime: "23:59",
       deliveryRadiusKm: 2,
       deliveryFee: 30,          // EDIT: flat delivery fee for this outlet
       minOrder: 99,             // EDIT: minimum order value
@@ -733,9 +730,9 @@ const DATA = {
   extraCheesePrice: 40,
 
   // ---------------- products.js ----------------
-  // This list is only used if the server can't be reached (offline fallback).
-  // The real menu now lives in MongoDB and is edited from the Admin panel.
-  fallbackProducts: [
+  // EDIT PRODUCT INFORMATION HERE. To change a price, edit the number below
+  // e.g. to change Classic Cheese Pizza's small price from 69 to 79, change prices.small.
+  products: [
     { id:"pz-001", name:"Classic Cheese Pizza", category:"pizza", desc:"Loaded with melty mozzarella on our signature base.", veg:true, available:true, featured:true, rating:4.4, emoji:"🍕", img:"images/classic-cheese-pizza.jpg", customizable:true, prices:{ small:69, medium:84, large:99 } },
     { id:"pz-002", name:"Onion Pizza", category:"pizza", desc:"Classic base topped generously with fresh onions.", veg:true, available:true, featured:false, rating:4.2, emoji:"🍕", img:"images/onion-pizza.jpg", customizable:true, prices:{ small:89, medium:99, large:119 } },
     { id:"pz-003", name:"Corn Pizza", category:"pizza", desc:"Sweet corn kernels over gooey cheese.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍕", img:"images/corn-pizza.jpg", customizable:true, prices:{ small:89, medium:99, large:119 } },
@@ -809,27 +806,11 @@ let comboModalState = { pizzas:[], qty:1 };
 let adminTab = "overview";
 let trackingTimer = null;
 
-// The live menu — loaded from the server so admin changes show up for
-// every visitor without editing any code. Falls back to a built-in
-// copy if the server can't be reached (e.g. while offline).
-let PRODUCTS = [];
-let adminKey = localStorage.getItem('bb_admin_key') || '';
-async function loadProducts(){
-  try{
-    const res = await fetch('/api/products');
-    if(!res.ok) throw new Error('bad response');
-    const list = await res.json();
-    PRODUCTS = list.length ? list : DATA.fallbackProducts;
-  }catch(e){
-    PRODUCTS = DATA.fallbackProducts;
-  }
-}
-
 /* ============================================================================
    UTILITIES
    ============================================================================ */
 function rupee(n){ return "₹" + Math.round(n); }
-function findProduct(id){ return PRODUCTS.find(p=>p.id===id); }
+function findProduct(id){ return DATA.products.find(p=>p.id===id); }
 function toast(msg){
   const el = document.createElement("div");
   el.className = "toast"; el.textContent = msg;
@@ -868,7 +849,7 @@ function go(view, anchor){
   if(view==='tracking') renderTrackingScreen();
   if(view==='orders') renderOrdersScreen();
   if(view==='favorites') renderFavoritesScreen();
-  if(view==='admin') renderAdminGate();
+  if(view==='admin') renderAdminScreen();
   if(view==='delivery') renderDeliveryScreen();
   updateStickyCart();
   if(anchor){ setTimeout(()=>{ const el=document.getElementById(anchor); if(el) el.scrollIntoView({behavior:'smooth'}); }, 60); }
@@ -964,13 +945,13 @@ function productCardHTML(p, opts={}){
   </div>`;
 }
 function renderHome(){
-  document.getElementById('popularGrid').innerHTML = PRODUCTS.filter(p=>p.featured).slice(0,8).map(p=>productCardHTML(p)).join('');
+  document.getElementById('popularGrid').innerHTML = DATA.products.filter(p=>p.featured).slice(0,8).map(p=>productCardHTML(p)).join('');
   document.getElementById('catGrid').innerHTML = DATA.categories.map(c=>`
     <div class="pcard" style="align-items:center;text-align:center;cursor:pointer;" onclick="state.activeCategory='${c.id}'; go('menu');">
       <div class="plate" style="width:100%;">${c.emoji}</div>
       <h4 style="text-align:center;">${c.label}</h4>
     </div>`).join('');
-  document.getElementById('comboGrid').innerHTML = PRODUCTS.filter(p=>p.category==='combos').map(p=>productCardHTML(p)).join('');
+  document.getElementById('comboGrid').innerHTML = DATA.products.filter(p=>p.category==='combos').map(p=>productCardHTML(p)).join('');
   document.getElementById('reviewScroll').innerHTML = state.reviews.map(r=>`
     <div class="review-card">
       <div class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
@@ -1002,7 +983,7 @@ function setMenuCategory(cat){ state.activeCategory = cat; renderMenuScreen(); }
 function renderMenuGrid(){
   const q = (document.getElementById('menuSearch')?.value || '').toLowerCase();
   state.menuSearch = q;
-  let list = PRODUCTS.filter(p=>{
+  let list = DATA.products.filter(p=>{
     const matchesCat = state.activeCategory==='all' || p.category===state.activeCategory;
     const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q);
     return matchesCat && matchesSearch;
@@ -1036,14 +1017,14 @@ function openProductModal(p){
 }
 function openComboModal(p){
   currentModalProduct = p;
-  const firstPizza = PRODUCTS.find(x=>x.category==='pizza' && x.available);
+  const firstPizza = DATA.products.find(x=>x.category==='pizza' && x.available);
   comboModalState = { pizzas: Array(p.comboPizzaCount).fill(firstPizza ? firstPizza.id : ''), qty: 1 };
   renderComboModal();
 }
 function renderComboModal(){
   const p = currentModalProduct;
   const root = document.getElementById('modalRoot');
-  const pizzaOptions = PRODUCTS.filter(x=>x.category==='pizza' && x.available);
+  const pizzaOptions = DATA.products.filter(x=>x.category==='pizza' && x.available);
   root.innerHTML = `
   <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
     <div class="modal-box">
@@ -1082,7 +1063,7 @@ function setComboPizza(idx, pid){ comboModalState.pizzas[idx] = pid; }
 function changeComboQty(delta){ comboModalState.qty = Math.max(1, comboModalState.qty+delta); renderComboModal(); }
 function confirmComboAddToCart(){
   const p = currentModalProduct;
-  const pizzaNames = comboModalState.pizzas.map(pid=>{ const pr = PRODUCTS.find(x=>x.id===pid); return pr ? pr.name : ''; }).filter(Boolean);
+  const pizzaNames = comboModalState.pizzas.map(pid=>{ const pr = DATA.products.find(x=>x.id===pid); return pr ? pr.name : ''; }).filter(Boolean);
   state.cart.push({
     lineId: 'l' + Date.now() + Math.random().toString(16).slice(2),
     productId: p.id, name: p.name, emoji: p.emoji, img: p.img,
@@ -1342,7 +1323,7 @@ function toggleFavorite(id, evt){
 }
 function renderFavoritesScreen(){
   const grid = document.getElementById('favGrid');
-  const favProducts = PRODUCTS.filter(p=>state.favorites.includes(p.id));
+  const favProducts = DATA.products.filter(p=>state.favorites.includes(p.id));
   if(favProducts.length===0){
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="em">🤍</div><h3>No favorites yet</h3><p>Tap the heart icon on any dish to save it here.</p><button class="btn btn-primary" onclick="go('menu')">Browse Menu</button></div>`;
     return;
@@ -1626,131 +1607,12 @@ function openPolicy(key){
 }
 
 /* ============================================================================
-   ADMIN DASHBOARD
+   ADMIN DASHBOARD (demo)
    ============================================================================ */
-function renderAdminGate(){
-  const loginBox = document.getElementById('adminLoginBox');
-  const wrap = document.getElementById('adminWrap');
-  if(adminKey){
-    loginBox.innerHTML = '';
-    wrap.classList.remove('hide');
-    renderAdminScreen();
-  } else {
-    wrap.classList.add('hide');
-    loginBox.innerHTML = `
-      <div class="co-block" style="max-width:360px;">
-        <h4>🔒 Admin Login</h4>
-        <div class="field"><label>Password</label><input id="adminPasswordInput" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter') adminLogin()"></div>
-        <button class="btn btn-primary btn-block" onclick="adminLogin()">Login</button>
-      </div>`;
-  }
-}
-async function adminLogin(){
-  const input = document.getElementById('adminPasswordInput');
-  const pass = input ? input.value : '';
-  if(!pass){ toast("Enter the admin password"); return; }
-  try{
-    const res = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pass}) });
-    if(!res.ok){ const d = await res.json(); toast(d.error || "Login failed"); return; }
-    adminKey = pass;
-    localStorage.setItem('bb_admin_key', pass);
-    toast("Welcome back!");
-    renderAdminGate();
-  }catch(e){ toast("Could not reach server."); }
-}
-function adminLogout(){
-  adminKey = '';
-  localStorage.removeItem('bb_admin_key');
-  renderAdminGate();
-}
-async function adminFetch(url, options={}){
-  options.headers = Object.assign({}, options.headers, {'x-admin-key': adminKey, 'Content-Type':'application/json'});
-  const res = await fetch(url, options);
-  if(res.status===401){ toast("Session expired — please log in again."); adminLogout(); throw new Error('unauthorized'); }
-  return res;
-}
 function setAdminTab(tab){
   adminTab = tab;
-  document.querySelectorAll('.admin-side button[data-tab]').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.admin-side button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   renderAdminScreen();
-}
-function productRowHTML(p){
-  const priceFieldsHTML = p.customizable
-    ? `S:<input id="pS-${p.id}" style="width:52px" value="${p.prices?.small ?? ''}"> M:<input id="pM-${p.id}" style="width:52px" value="${p.prices?.medium ?? ''}"> L:<input id="pL-${p.id}" style="width:52px" value="${p.prices?.large ?? ''}">`
-    : `<input id="pP-${p.id}" style="width:70px" value="${p.price ?? ''}">`;
-  return `<tr>
-    <td>${p.emoji||'🍽️'} <input id="pName-${p.id}" value="${p.name}" style="width:150px"></td>
-    <td><select id="pCat-${p.id}">${DATA.categories.map(c=>`<option value="${c.id}" ${c.id===p.category?'selected':''}>${c.label}</option>`).join('')}</select></td>
-    <td>${priceFieldsHTML}</td>
-    <td><input id="pImg-${p.id}" value="${p.img||''}" placeholder="images/xyz.jpg or URL" style="width:150px"></td>
-    <td><button class="btn btn-sm ${p.available?'btn-ghost':'btn-secondary'}" onclick="toggleProductAvailability('${p.id}')">${p.available?'Available':'Out of Stock'}</button></td>
-    <td style="white-space:nowrap;"><button class="btn btn-sm btn-secondary" onclick="saveProductRow('${p.id}')">Save</button> <button class="btn btn-sm btn-ghost" onclick="deleteProductRow('${p.id}')">Delete</button></td>
-  </tr>`;
-}
-async function addNewProduct(){
-  const name = document.getElementById('newPName').value.trim();
-  const category = document.getElementById('newPCat').value;
-  const desc = document.getElementById('newPDesc').value.trim();
-  const emoji = document.getElementById('newPEmoji').value.trim() || '🍽️';
-  const img = document.getElementById('newPImg').value.trim();
-  const sized = document.getElementById('newPSized').checked;
-  if(!name){ toast("Enter a product name"); return; }
-  const id = category.slice(0,2) + '-' + Date.now().toString().slice(-6);
-  const body = { id, name, category, desc, emoji, img, veg:true, available:true, featured:false, rating:4.0, customizable: sized };
-  if(sized){
-    body.prices = {
-      small: Number(document.getElementById('newPSmall')?.value) || 0,
-      medium: Number(document.getElementById('newPMedium')?.value) || 0,
-      large: Number(document.getElementById('newPLarge')?.value) || 0
-    };
-  } else {
-    body.price = Number(document.getElementById('newPPrice')?.value) || 0;
-  }
-  try{
-    const res = await adminFetch('/api/admin/products', { method:'POST', body: JSON.stringify(body) });
-    if(!res.ok){ const d = await res.json(); toast(d.error||"Could not add product"); return; }
-    toast("Product added");
-    await loadProducts();
-    renderAdminScreen();
-    if(state.view==='home') renderHome();
-  }catch(e){}
-}
-async function saveProductRow(id){
-  const p = findProduct(id);
-  const name = document.getElementById(`pName-${id}`).value.trim();
-  const category = document.getElementById(`pCat-${id}`).value;
-  const img = document.getElementById(`pImg-${id}`).value.trim();
-  const body = { name, category, img };
-  if(p.customizable){
-    body.prices = {
-      small: Number(document.getElementById(`pS-${id}`).value) || 0,
-      medium: Number(document.getElementById(`pM-${id}`).value) || 0,
-      large: Number(document.getElementById(`pL-${id}`).value) || 0
-    };
-  } else {
-    body.price = Number(document.getElementById(`pP-${id}`).value) || 0;
-  }
-  try{
-    const res = await adminFetch(`/api/admin/products/${id}`, { method:'PUT', body: JSON.stringify(body) });
-    if(!res.ok){ const d = await res.json(); toast(d.error||"Could not save"); return; }
-    toast("Saved");
-    await loadProducts();
-    renderAdminScreen();
-    if(state.view==='home') renderHome();
-    if(state.view==='menu') renderMenuGrid();
-  }catch(e){}
-}
-async function deleteProductRow(id){
-  if(!confirm("Delete this product? This cannot be undone.")) return;
-  try{
-    const res = await adminFetch(`/api/admin/products/${id}`, { method:'DELETE' });
-    if(!res.ok){ const d = await res.json(); toast(d.error||"Could not delete"); return; }
-    toast("Product deleted");
-    await loadProducts();
-    renderAdminScreen();
-    if(state.view==='home') renderHome();
-    if(state.view==='menu') renderMenuGrid();
-  }catch(e){}
 }
 function renderAdminScreen(){
   const box = document.getElementById('adminContent');
@@ -1768,25 +1630,18 @@ function renderAdminScreen(){
       </div>
       <table class="admin-tbl">
         <tr><th>Popular Product</th><th>Category</th><th>Rating</th></tr>
-        ${PRODUCTS.filter(p=>p.featured).map(p=>`<tr><td>${p.emoji} ${p.name}</td><td>${p.category}</td><td>★ ${p.rating}</td></tr>`).join('')}
+        ${DATA.products.filter(p=>p.featured).map(p=>`<tr><td>${p.emoji} ${p.name}</td><td>${p.category}</td><td>★ ${p.rating}</td></tr>`).join('')}
       </table>`;
   } else if(adminTab==='products'){
-    box.innerHTML = `
-      <div class="co-block" style="margin-bottom:18px;">
-        <h4>+ Add New Product</h4>
-        <div class="field"><label>Name</label><input id="newPName" placeholder="e.g. Mushroom Pizza"></div>
-        <div class="field"><label>Category</label><select id="newPCat">${DATA.categories.map(c=>`<option value="${c.id}">${c.label}</option>`).join('')}</select></div>
-        <div class="field"><label>Description</label><input id="newPDesc" placeholder="Short description"></div>
-        <div class="field"><label>Emoji (shown if no image)</label><input id="newPEmoji" value="🍕"></div>
-        <div class="field"><label>Image URL (optional)</label><input id="newPImg" placeholder="https://... or images/xyz.jpg"></div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:10px;"><input type="checkbox" id="newPSized" onchange="document.getElementById('newPPriceFields').innerHTML = this.checked ? '<div class=\\'field\\'><label>Small (₹)</label><input id=\\'newPSmall\\' type=\\'number\\'></div><div class=\\'field\\'><label>Medium (₹)</label><input id=\\'newPMedium\\' type=\\'number\\'></div><div class=\\'field\\'><label>Large (₹)</label><input id=\\'newPLarge\\' type=\\'number\\'></div>' : '<div class=\\'field\\'><label>Price (₹)</label><input id=\\'newPPrice\\' type=\\'number\\' placeholder=\\'e.g. 129\\'></div>'"> This item has Small/Medium/Large pricing (like pizza)</label>
-        <div id="newPPriceFields"><div class="field"><label>Price (₹)</label><input id="newPPrice" type="number" placeholder="e.g. 129"></div></div>
-        <button class="btn btn-primary btn-sm" onclick="addNewProduct()">+ Add Product</button>
-      </div>
-      <table class="admin-tbl">
-        <tr><th>Product</th><th>Category</th><th>Price(s)</th><th>Image</th><th>Status</th><th>Actions</th></tr>
-        ${PRODUCTS.map(p=>productRowHTML(p)).join('')}
-      </table>`;
+    box.innerHTML = `<table class="admin-tbl">
+      <tr><th>Product</th><th>Category</th><th>Price(s)</th><th>Status</th></tr>
+      ${DATA.products.map(p=>`<tr>
+        <td>${p.emoji} ${p.name}</td><td>${p.category}</td>
+        <td>${p.customizable ? `S:<input value="${p.prices.small}" onchange="editProductPrice('${p.id}','small',this.value)"> M:<input value="${p.prices.medium}" onchange="editProductPrice('${p.id}','medium',this.value)"> L:<input value="${p.prices.large}" onchange="editProductPrice('${p.id}','large',this.value)">`
+                          : `<input value="${p.price}" onchange="editProductPrice('${p.id}','flat',this.value)">`}</td>
+        <td><button class="btn btn-sm ${p.available?'btn-ghost':'btn-secondary'}" onclick="toggleProductAvailability('${p.id}')">${p.available?'Available':'Out of Stock'}</button></td>
+      </tr>`).join('')}
+    </table>`;
   } else if(adminTab==='orders'){
     if(state.orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
     box.innerHTML = `<table class="admin-tbl">
@@ -1811,16 +1666,16 @@ function renderAdminScreen(){
     </table>`;
   }
 }
-async function toggleProductAvailability(id){
-  const p = findProduct(id);
-  try{
-    const res = await adminFetch(`/api/admin/products/${id}`, { method:'PUT', body: JSON.stringify({available: !p.available}) });
-    if(!res.ok){ const d = await res.json(); toast(d.error||"Could not update"); return; }
-    await loadProducts();
-    renderAdminScreen();
-    if(state.view==='menu') renderMenuGrid();
-    if(state.view==='home') renderHome();
-  }catch(e){}
+function editProductPrice(id, key, val){
+  const p = findProduct(id); const num = parseFloat(val);
+  if(isNaN(num)) return;
+  if(key==='flat') p.price = num; else p.prices[key] = num;
+  toast("Price updated (demo — session only)");
+  if(state.view==='home') renderHome(); if(state.view==='menu') renderMenuGrid();
+}
+function toggleProductAvailability(id){
+  const p = findProduct(id); p.available = !p.available; renderAdminScreen();
+  if(state.view==='menu') renderMenuGrid();
 }
 function adminSetOrderStatus(orderId, status){
   const o = state.orders.find(o=>o.id===orderId); if(o){ o.status = status; }
@@ -1868,15 +1723,15 @@ function advanceDelivery(orderId){
 /* ============================================================================ 
    INIT 
    ============================================================================ */ 
-async function init(){
-  document.getElementById('brandTagline').textContent = DATA.business.tagline.split('.')[0] + '.';
-  await loadProducts();
-  renderHome();
-  initLocation();
-  go('home');
-}
-init();
-</script>
+function init(){ 
+  document.getElementById('brandTagline').textContent = DATA.business.tagline.split('.')[0] + '.'; 
+  renderHome(); 
+  initLocation(); 
+  go('home'); 
+} 
+init(); 
+</script> 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-</body>
-</html>
+</body> 
+</html> 
+bas first line read kar
