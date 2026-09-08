@@ -928,7 +928,7 @@ function useCurrentLocation(){
   navigator.geolocation.getCurrentPosition(pos=>{
     const {latitude, longitude} = pos.coords;
     resolveOutletForLocation(latitude, longitude, document.getElementById('locPillText'));
-    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'' };
+    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'', lat: latitude, lng: longitude };
     renderCheckoutScreen();
   }, err=>{
     document.getElementById('addrStatus').textContent = "Location permission denied. Please enter your address or pincode below.";
@@ -1877,6 +1877,13 @@ async function deliveryLogin(){
     errBox.textContent = e.message;
   }
 }
+function navigateLink(order){
+  if(order.address?.lat && order.address?.lng){
+    return `https://www.google.com/maps/dir/?api=1&destination=${order.address.lat},${order.address.lng}`;
+  }
+  const q = encodeURIComponent(order.address?.text || '');
+  return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
+}
 async function renderDeliveryScreen(){
   const box = document.getElementById('deliveryContent');
   box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
@@ -1899,7 +1906,7 @@ async function renderDeliveryScreen(){
       <div class="actions">
         <a class="btn btn-ghost btn-sm" href="tel:${o.customer?.phone||''}">📞 Call Customer</a>
         <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}" target="_blank">💬 WhatsApp</a> 
-        <a class="btn btn-ghost btn-sm" href="${outlet.mapsLink}" target="_blank">🗺️ Navigate</a> 
+        <a class="btn btn-ghost btn-sm" href="${navigateLink(o)}" target="_blank">🗺️ Navigate</a> 
         <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}', '${o.status}')">Advance Status →</button> 
       </div> 
     </div>`).join(''); 
