@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
 const path = require("path");
@@ -5,6 +6,7 @@ const mongoose = require("mongoose");
 const Razorpay = require("razorpay");
 const Order = require("./models/Order");
 const Product = require("./models/Product");
+const EmailOtp = require("./models/EmailOtp");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -58,6 +60,61 @@ Grand Total: ₹${order.totals?.grandTotal ?? ""}`
   } catch (e) {
     console.error("Failed to send notification email:", e.message);
   }
+}
+
+// ---------------- Email OTP (customer verification) ----------------
+// Sends a 6-digit OTP to the CUSTOMER's email (different from sendOrderEmail,
+// which notifies the shop owner). Reuses the same Brevo HTTP API.
+async function sendOtpEmail(toEmail, otp) {
+  if (!emailEnabled) {
+    throw new Error("Email is not configured on the server (missing BREVO_API_KEY/BREVO_SENDER_EMAIL).");
+  }
+  const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": process.env.BREVO_API_KEY,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify({
+      sender: { name: "Bunk And Bite", email: process.env.BREVO_SENDER_EMAIL },
+      to: [{ email: toEmail }],
+      subject: `Your Bunk And Bite verification code: ${otp}`,
+      textContent: `Your OTP to verify your email is: ${otp}\n\nThis code expires in 10 minutes. If you did not request this, ignore this email.`
+    })
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Brevo API responded ${resp.status}: ${errText}`);
+  }
+}
+
+// A short-lived signed token proves "this email was OTP-verified recently"
+// without needing the browser to keep hitting the database. Order creation
+// checks this token instead of re-checking the EmailOtp collection.
+function makeEmailVerificationToken(email) {
+  const expiresAt = Date.now() + 30 * 60 * 1000; // valid 30 minutes after verification
+  const payload = `${email.toLowerCase()}|${expiresAt}`;
+  const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
+  const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  return Buffer.from(`${payload}|${sig}`).toString("base64url");
+}
+function verifyEmailVerificationToken(token, email) {
+  try {
+    const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
+    const decoded = Buffer.from(String(token), "base64url").toString("utf8");
+    const [tokenEmail, expiresAtStr, sig] = decoded.split("|");
+    if (tokenEmail !== String(email || "").toLowerCase()) return false;
+    const expected = crypto.createHmac("sha256", secret).update(`${tokenEmail}|${expiresAtStr}`).digest("hex");
+    if (sig !== expected) return false;
+    if (Date.now() > Number(expiresAtStr)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+function validEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ""));
 }
 
 // ---------------- Database connection ----------------
@@ -164,21 +221,83 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------------- Email OTP endpoints ----------------
+app.post("/api/otp/send", async (req, res) => {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    if (!validEmail(email)) return res.status(400).json({ error: "Valid email is required." });
+    if (!emailEnabled) return res.status(503).json({ error: "Email service is not configured on the server." });
+
+    const otp = String(crypto.randomInt(100000, 1000000)); // 6-digit
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Basic anti-spam: don't allow a fresh send if one was requested <30s ago.
+    const existing = await EmailOtp.findOne({ email });
+    if (existing && Date.now() - existing.createdAt.getTime() < 30 * 1000) {
+      return res.status(429).json({ error: "Please wait a few seconds before requesting another OTP." });
+    }
+
+    await EmailOtp.findOneAndUpdate(
+      { email },
+      { email, otp, verified: false, attempts: 0, createdAt: new Date(), expiresAt },
+      { upsert: true }
+    );
+
+    await sendOtpEmail(email, otp);
+    res.json({ ok: true, message: "OTP sent to your email." });
+  } catch (e) {
+    console.error("Failed to send OTP:", e.message);
+    res.status(500).json({ error: "Unable to send OTP right now. Please try again." });
+  }
+});
+
+app.post("/api/otp/verify", async (req, res) => {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const otp = String(req.body.otp || "").trim();
+    if (!validEmail(email) || !otp) return res.status(400).json({ error: "Email and OTP are required." });
+
+    const record = await EmailOtp.findOne({ email });
+    if (!record) return res.status(400).json({ error: "No OTP found for this email. Please request a new one." });
+    if (record.expiresAt < new Date()) return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    if (record.attempts >= 5) return res.status(429).json({ error: "Too many incorrect attempts. Please request a new OTP." });
+
+    if (record.otp !== otp) {
+      record.attempts += 1;
+      await record.save();
+      return res.status(400).json({ error: "Incorrect OTP." });
+    }
+
+    record.verified = true;
+    await record.save();
+
+    const token = makeEmailVerificationToken(email);
+    res.json({ ok: true, verificationToken: token });
+  } catch (e) {
+    console.error("Failed to verify OTP:", e.message);
+    res.status(500).json({ error: "Unable to verify OTP right now. Please try again." });
+  }
+});
+
 // ---------------- Orders ----------------
 app.post("/api/orders", async (req,res) => {
   try {
-    const { customer, items, totals, address, outlet, paymentMethod } = req.body;
+    const { customer, items, totals, address, outlet, paymentMethod, emailVerificationToken } = req.body;
     if (!customer?.name || !validPhone(customer.phone)) return res.status(400).json({error:"Valid customer name and 10-digit mobile number are required."});
     if (!Array.isArray(items) || !items.length) return res.status(400).json({error:"Cart is empty."});
     if (!address?.text) return res.status(400).json({error:"Delivery address is required."});
     if (!outlet?.id) return res.status(400).json({error:"Outlet is required."});
+    if (!validEmail(customer.email)) return res.status(400).json({error:"Valid email is required."});
+    if (!verifyEmailVerificationToken(emailVerificationToken, customer.email)) {
+      return res.status(400).json({error:"Email is not verified. Please verify the OTP sent to your email before placing the order."});
+    }
 
     // IMPORTANT: In a production deployment, calculate prices again from the database here.
     // Never trust totals sent by the browser.
     const orderId = await nextOrderNumber();
     const order = new Order({
       id: orderId,
-      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone) },
+      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone), email: String(customer.email).toLowerCase() },
       items,
       totals,
       address,
