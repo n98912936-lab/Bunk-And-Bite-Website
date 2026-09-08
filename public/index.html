@@ -1884,36 +1884,6 @@ function navigateLink(order){
   const q = encodeURIComponent(order.address?.text || '');
   return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
 }
-let deliveryOrdersCache = [];
-function navigateWithCurrentLocation(orderId){
-  const order = deliveryOrdersCache.find(o=>o.id===orderId);
-  if(!order){ toast('Order not found'); return; }
-  const destination = (order.address?.lat && order.address?.lng)
-    ? `${order.address.lat},${order.address.lng}`
-    : encodeURIComponent(order.address?.text || '');
-  const openMaps = (originParam)=>{
-    const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destination}&travelmode=driving`;
-    window.open(url, '_blank');
-  };
-  if(!navigator.geolocation){
-    // Browser can't get GPS location — Maps will still ask for/use current location once opened.
-    openMaps('');
-    return;
-  }
-  toast('Getting your location…');
-  navigator.geolocation.getCurrentPosition(
-    (pos)=>{
-      const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
-      openMaps(`&origin=${origin}`);
-    },
-    (err)=>{
-      // Location permission denied/unavailable — fall back to destination-only link.
-      toast('Could not get your location — opening map with destination only');
-      openMaps('');
-    },
-    { enableHighAccuracy:true, timeout:8000 }
-  );
-}
 async function renderDeliveryScreen(){
   const box = document.getElementById('deliveryContent');
   box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
@@ -1925,10 +1895,7 @@ async function renderDeliveryScreen(){
     return;
   }
   const outlet = DATA.outlets[0];
-  deliveryOrdersCache = active;
-  box.innerHTML = active.map(o=>{
-    const waText = encodeURIComponent(`Hi ${o.customer?.name||''}, your Bunk And Bite order #${o.id} is on the way! Delivery address: ${o.address?.text||''}. — Delivery partner`);
-    return `
+  box.innerHTML = active.map(o=>`
     <div class="deliv-card">
       <div class="top">
         <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.paymentMethod==='cod'?('COD: '+rupee(o.totals.grandTotal)):'Prepaid (₹0 to collect)'}</div></div>
@@ -1938,12 +1905,11 @@ async function renderDeliveryScreen(){
       <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Customer:</b> ${o.customer?.name||''}</div>
       <div class="actions">
         <a class="btn btn-ghost btn-sm" href="tel:${o.customer?.phone||''}">📞 Call Customer</a>
-        <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}?text=${waText}" target="_blank">💬 WhatsApp</a>
-        <button class="btn btn-ghost btn-sm" onclick="navigateWithCurrentLocation('${o.id}')">🗺️ Navigate</button>
+        <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}" target="_blank">💬 WhatsApp</a> 
+        <a class="btn btn-ghost btn-sm" href="${navigateLink(o)}" target="_blank">🗺️ Navigate</a> 
         <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}', '${o.status}')">Advance Status →</button> 
       </div> 
-    </div>`;
-  }).join('');
+    </div>`).join(''); 
 } 
 async function advanceDelivery(orderId, currentStatus){ 
   const seq = STATUS_STEPS.map(s=>s.id); 
