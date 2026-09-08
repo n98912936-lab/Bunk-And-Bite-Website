@@ -613,8 +613,15 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== DELIVERY ===================== -->
 <main id="screen-delivery" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>Delivery Dashboard</h1><p>Demo delivery partner — Rahul K.</p></div>
-    <div id="deliveryContent"></div>
+    <div class="screen-hero"><h1>Delivery Dashboard</h1><p id="deliverySubtitle">Track and update assigned deliveries.</p></div>
+
+    <div id="deliveryLoginBox" class="co-block" style="max-width:380px;">
+      <div class="field"><label>Delivery Password</label><input id="deliveryPasswordInput" type="password" placeholder="Enter delivery password" onkeydown="if(event.key==='Enter') deliveryLogin()"></div>
+      <button class="btn btn-primary" onclick="deliveryLogin()">Login</button>
+      <div id="deliveryLoginError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
+
+    <div id="deliveryContent" class="hide"></div>
   </div>
 </main>
 
@@ -873,7 +880,7 @@ function go(view, anchor){
   if(view==='orders') renderOrdersScreen();
   if(view==='favorites') renderFavoritesScreen();
   if(view==='admin') showAdminScreen();
-  if(view==='delivery') renderDeliveryScreen();
+  if(view==='delivery') showDeliveryScreen();
   updateStickyCart();
   if(anchor){ setTimeout(()=>{ const el=document.getElementById(anchor); if(el) el.scrollIntoView({behavior:'smooth'}); }, 60); }
 }
@@ -1837,36 +1844,78 @@ function toggleCoupon(code){
 /* ============================================================================
    DELIVERY DASHBOARD (demo)
    ============================================================================ */
-function renderDeliveryScreen(){
+function showDeliveryScreen(){
+  const savedKey = sessionStorage.getItem('bb_delivery_key');
+  if(savedKey){
+    state.deliveryKey = savedKey;
+    document.getElementById('deliveryLoginBox').classList.add('hide');
+    document.getElementById('deliveryContent').classList.remove('hide');
+    renderDeliveryScreen();
+  } else {
+    document.getElementById('deliveryLoginBox').classList.remove('hide');
+    document.getElementById('deliveryContent').classList.add('hide');
+  }
+}
+async function deliveryLogin(){
+  const pw = document.getElementById('deliveryPasswordInput').value;
+  const errBox = document.getElementById('deliveryLoginError');
+  errBox.textContent = '';
+  if(!pw){ errBox.textContent = 'Please enter the password.'; return; }
+  try{
+    const r = await fetch('/api/delivery/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Login failed');
+    state.deliveryKey = pw;
+    sessionStorage.setItem('bb_delivery_key', pw);
+    document.getElementById('deliveryLoginBox').classList.add('hide');
+    document.getElementById('deliveryContent').classList.remove('hide');
+    renderDeliveryScreen();
+  }catch(e){
+    errBox.textContent = e.message;
+  }
+}
+async function renderDeliveryScreen(){
   const box = document.getElementById('deliveryContent');
-  const active = state.orders.filter(o=>o.status!=='delivered');
+  box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
+  const r = await fetch('/api/orders');
+  const orders = await r.json();
+  const active = orders.filter(o=>o.status!=='delivered' && o.status!=='cancelled');
   if(active.length===0){
     box.innerHTML = `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
     return;
   }
-  const outlet = state.selectedOutlet || DATA.outlets[0];
+  const outlet = DATA.outlets[0];
   box.innerHTML = active.map(o=>`
     <div class="deliv-card">
       <div class="top">
-        <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · COD: ${o.payment==='cod'?rupee(o.totals.grandTotal):'₹0 (prepaid)'}</div></div>
+        <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.paymentMethod==='cod'?('COD: '+rupee(o.totals.grandTotal)):'Prepaid (₹0 to collect)'}</div></div>
         <span class="st ${o.status==='delivered'?'delivered':'transit'}">${STATUS_STEPS.find(s=>s.id===o.status)?.label}</span>
       </div>
-      <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Deliver to:</b> ${o.address}</div>
+      <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Deliver to:</b> ${o.address?.text||''}</div>
+      <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Customer:</b> ${o.customer?.name||''}</div>
       <div class="actions">
-        <a class="btn btn-ghost btn-sm" href="tel:9284434916">📞 Call Customer</a>
-        <a class="btn btn-ghost btn-sm" href="https://wa.me/919284434916" target="_blank">💬 WhatsApp</a> 
+        <a class="btn btn-ghost btn-sm" href="tel:${o.customer?.phone||''}">📞 Call Customer</a>
+        <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}" target="_blank">💬 WhatsApp</a> 
         <a class="btn btn-ghost btn-sm" href="${outlet.mapsLink}" target="_blank">🗺️ Navigate</a> 
-        <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}')">Advance Status →</button> 
+        <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}', '${o.status}')">Advance Status →</button> 
       </div> 
     </div>`).join(''); 
 } 
-function advanceDelivery(orderId){ 
-  const o = state.orders.find(o=>o.id===orderId); 
+async function advanceDelivery(orderId, currentStatus){ 
   const seq = STATUS_STEPS.map(s=>s.id); 
-  const i = seq.indexOf(o.status); 
-  if(i < seq.length-1) o.status = seq[i+1]; 
-  renderDeliveryScreen(); 
-  if(state.view==='tracking') renderTrackingScreen(); 
+  const i = seq.indexOf(currentStatus); 
+  if(i >= seq.length-1) return;
+  const nextStatus = seq[i+1];
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    renderDeliveryScreen(); 
+  }catch(e){ toast(e.message); }
 } 
  
 /* ============================================================================ 

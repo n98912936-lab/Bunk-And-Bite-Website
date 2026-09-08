@@ -177,6 +177,17 @@ app.post("/api/admin/login", (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/delivery/login", (req, res) => {
+  if (!process.env.DELIVERY_PASSWORD) {
+    return res.status(503).json({ error: "Delivery panel is not configured. Add DELIVERY_PASSWORD to .env." });
+  }
+  const { password } = req.body;
+  if (password !== process.env.DELIVERY_PASSWORD) {
+    return res.status(401).json({ error: "Incorrect password." });
+  }
+  res.json({ ok: true });
+});
+
 // ---------------- Products (public read) ----------------
 app.get("/api/products", async (req, res) => {
   const products = await Product.find().sort({ category: 1, name: 1 });
