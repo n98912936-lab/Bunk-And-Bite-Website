@@ -503,6 +503,21 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           <h4><span class="num">1</span> Customer & Delivery Address</h4>
           <div class="field"><label>Full Name</label><input id="customerName" placeholder="Your name" autocomplete="name"></div>
           <div class="field"><label>Mobile Number</label><input id="customerPhone" placeholder="10-digit mobile number" inputmode="tel" autocomplete="tel"></div>
+          <div class="field">
+            <label>Email</label>
+            <div style="display:flex;gap:8px;">
+              <input id="customerEmail" placeholder="you@example.com" type="email" autocomplete="email" style="flex:1;" oninput="onEmailChanged()">
+              <button type="button" class="btn btn-ghost btn-sm" id="sendOtpBtn" onclick="sendOtp()">Send OTP</button>
+            </div>
+          </div>
+          <div class="field" id="otpFieldWrap" style="display:none;">
+            <label>Enter OTP</label>
+            <div style="display:flex;gap:8px;">
+              <input id="customerOtp" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="flex:1;">
+              <button type="button" class="btn btn-ghost btn-sm" id="verifyOtpBtn" onclick="verifyOtp()">Verify</button>
+            </div>
+          </div>
+          <div id="emailOtpStatus" style="font-size:13px;color:var(--ink-soft);margin-top:2px;"></div>
           <div class="addr-opts">
             <button class="btn btn-ghost btn-sm" onclick="useCurrentLocation()">📍 Use Current Location</button>
             <button class="btn btn-ghost btn-sm" onclick="toggleManualAddr()">✏️ Enter Manually</button>
@@ -510,7 +525,6 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           <div id="manualAddrFields" class="hide">
             <div class="field"><label>Full Address</label><textarea id="addrText" rows="2" placeholder="House no, street, area..."></textarea></div>
             <div class="field"><label>Pincode</label><input id="addrPin" placeholder="e.g. 411046"></div>
-            <button class="btn btn-primary btn-sm" onclick="saveManualAddress()">Save Address</button>
           </div>
           <div id="addrStatus" style="font-size:13px;color:var(--ink-soft);margin-top:6px;"></div>
         </div>
@@ -679,8 +693,8 @@ const DATA = {
       longitude: 73.8677,
       phone: "9284434916",
       whatsapp: "9284434916",
-      openingTime: "00:00",
-      closingTime: "23:59",
+      openingTime: "15:00",
+      closingTime: "22:00",
       deliveryRadiusKm: 2,
       deliveryFee: 30,          // EDIT: flat delivery fee for this outlet
       minOrder: 99,             // EDIT: minimum order value
@@ -747,34 +761,34 @@ const DATA = {
     { id:"pz-011", name:"Veg Paradise Pizza", category:"pizza", desc:"A loaded garden of veggies on cheesy base.", veg:true, available:true, featured:false, rating:4.5, emoji:"🍕", img:"images/veg-paradise-pizza.jpg", customizable:true, prices:{ small:159, medium:179, large:199 } },
     { id:"pz-012", name:"Farmhouse Pizza", category:"pizza", desc:"Onion, capsicum, corn, tomato — farm-fresh flavour.", veg:true, available:true, featured:true, rating:4.7, emoji:"🍕", img:"images/farmhouse-pizza.jpg", customizable:true, prices:{ small:199, medium:219, large:249 } },
 
-    { id:"bg-001", name:"Classic Veg Aloo Tikki Burger", category:"burgers", desc:"Crisp aloo tikki patty with fresh lettuce and mayo.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍔", img:"images/classic-veg-aloo-tikki-burger.jpg", customizable:false, price:99 },
-    { id:"bg-002", name:"Cheese Veg Aloo Tikki Burger", category:"burgers", desc:"Our classic aloo tikki burger with a melted cheese slice.", veg:true, available:true, featured:true, rating:4.3, emoji:"🍔", img:"images/cheese-veg-aloo-tikki-burger.jpg", customizable:false, price:129 },
-    { id:"bg-003", name:"Paneer Aloo Tikki Burger", category:"burgers", desc:"Grilled paneer and aloo tikki patty, loaded with flavour.", veg:true, available:true, featured:false, rating:4.4, emoji:"🍔", img:"images/paneer-aloo-tikki-burger.jpg", customizable:false, price:149 },
+    { id:"bg-001", name:"Classic Veg Burger", category:"burgers", desc:"Crisp veg patty with fresh lettuce and mayo.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍔", customizable:false, price:99 },
+    { id:"bg-002", name:"Cheese Veg Burger", category:"burgers", desc:"Our classic burger with a melted cheese slice.", veg:true, available:true, featured:true, rating:4.3, emoji:"🍔", customizable:false, price:129 },
+    { id:"bg-003", name:"Paneer Burger", category:"burgers", desc:"Grilled paneer patty, loaded with flavour.", veg:true, available:true, featured:false, rating:4.4, emoji:"🍔", customizable:false, price:149 },
 
-    { id:"gb-001", name:"Classic Garlic Bread", category:"garlic-bread", desc:"Toasted bread brushed with garlic butter.", veg:true, available:true, featured:false, rating:4.2, emoji:"🥖", img:"images/classic-garlic-bread.jpg", customizable:false, price:99 },
-    { id:"gb-002", name:"Cheese Garlic Bread", category:"garlic-bread", desc:"Garlic bread topped with molten cheese.", veg:true, available:true, featured:true, rating:4.5, emoji:"🥖", img:"images/cheese-garlic-bread.jpg", customizable:false, price:129 },
-    { id:"gb-003", name:"Spicy Cheese Garlic Bread", category:"garlic-bread", desc:"Cheese garlic bread with a spicy twist.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥖", img:"images/spicy-cheese-garlic-bread.jpg", customizable:false, price:149 },
+    { id:"gb-001", name:"Classic Garlic Bread", category:"garlic-bread", desc:"Toasted bread brushed with garlic butter.", veg:true, available:true, featured:false, rating:4.2, emoji:"🥖", customizable:false, price:99 },
+    { id:"gb-002", name:"Cheese Garlic Bread", category:"garlic-bread", desc:"Garlic bread topped with molten cheese.", veg:true, available:true, featured:true, rating:4.5, emoji:"🥖", customizable:false, price:129 },
+    { id:"gb-003", name:"Spicy Cheese Garlic Bread", category:"garlic-bread", desc:"Cheese garlic bread with a spicy twist.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥖", customizable:false, price:149 },
 
-    { id:"fr-001", name:"Classic Fries", category:"fries", desc:"Golden, crispy and perfectly salted.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍟", img:"images/classic-fries.jpg", customizable:false, price:79 },
-    { id:"fr-002", name:"Peri Peri Fries", category:"fries", desc:"Tossed in tangy peri peri seasoning.", veg:true, available:true, featured:true, rating:4.4, emoji:"🍟", img:"images/peri-peri-fries.jpg", customizable:false, price:99 },
-    { id:"fr-003", name:"Cheese Fries", category:"fries", desc:"Loaded with a generous layer of cheese.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍟", img:"images/cheese-fries.jpg", customizable:false, price:129 },
+    { id:"fr-001", name:"Classic Fries", category:"fries", desc:"Golden, crispy and perfectly salted.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍟", customizable:false, price:79 },
+    { id:"fr-002", name:"Peri Peri Fries", category:"fries", desc:"Tossed in tangy peri peri seasoning.", veg:true, available:true, featured:true, rating:4.4, emoji:"🍟", customizable:false, price:99 },
+    { id:"fr-003", name:"Cheese Fries", category:"fries", desc:"Loaded with a generous layer of cheese.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍟", customizable:false, price:129 },
 
     { id:"sd-001", name:"Veg Nuggets", category:"sides", desc:"Crispy bite-sized veggie nuggets.", veg:true, available:true, featured:false, rating:4.0, emoji:"🍗", customizable:false, price:99 },
     { id:"sd-002", name:"Cheesy Bites", category:"sides", desc:"Bite-sized, cheese-stuffed and golden fried.", veg:true, available:true, featured:false, rating:4.2, emoji:"🍗", customizable:false, price:129 },
     { id:"sd-003", name:"Paneer Poppers", category:"sides", desc:"Crunchy on the outside, soft paneer inside.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍗", customizable:false, price:139 },
 
-    { id:"dr-001", name:"Coke", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.5, emoji:"🥤", img:"images/coke.jpg", customizable:false, price:50 },
-    { id:"dr-002", name:"Pepsi", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.4, emoji:"🥤", img:"images/pepsi.jpg", customizable:false, price:50 },
-    { id:"dr-003", name:"Sprite", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥤", img:"images/sprite.jpg", customizable:false, price:50 },
-    { id:"dr-004", name:"Water Bottle", category:"drinks", desc:"500ml packaged drinking water.", veg:true, available:true, featured:false, rating:4.5, emoji:"💧", img:"images/water-bottle.jpg", customizable:false, price:20 },
+    { id:"dr-001", name:"Coke", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.5, emoji:"🥤", customizable:false, price:50 },
+    { id:"dr-002", name:"Pepsi", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.4, emoji:"🥤", customizable:false, price:50 },
+    { id:"dr-003", name:"Sprite", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥤", customizable:false, price:50 },
+    { id:"dr-004", name:"Water Bottle", category:"drinks", desc:"500ml packaged drinking water.", veg:true, available:true, featured:false, rating:4.5, emoji:"💧", customizable:false, price:20 },
 
     { id:"ds-001", name:"Chocolate Lava Cake", category:"desserts", desc:"Warm cake with a molten chocolate centre.", veg:true, available:true, featured:true, rating:4.7, emoji:"🍰", customizable:false, price:99 },
     { id:"ds-002", name:"Brownie", category:"desserts", desc:"Fudgy, rich and chocolatey.", veg:true, available:true, featured:false, rating:4.5, emoji:"🍫", customizable:false, price:89 },
 
-    { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", img:"images/pizza-coke-combo.jpg", customizable:false, comboPizzaCount:1, price:249 },
-    { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", img:"images/pizza-garlic-bread-coke-combo.jpg", customizable:false, comboPizzaCount:1, price:349 },
-    { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", img:"images/couple-combo.jpg", customizable:false, comboPizzaCount:2, price:499 },
-    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", img:"images/family-combo.jpg", customizable:false, comboPizzaCount:2, price:699 }
+    { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", customizable:false, price:249 },
+    { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", customizable:false, price:349 },
+    { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", customizable:false, price:499 },
+    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", customizable:false, price:699 }
   ]
 };
 
@@ -803,7 +817,6 @@ const state = {
 
 let currentModalProduct = null;
 let modalState = { size:"medium", crust:"regular", extraCheese:false, toppings:[], qty:1, instructions:"" };
-let comboModalState = { pizzas:[], qty:1 };
 let adminTab = "overview";
 let trackingTimer = null;
 
@@ -941,7 +954,7 @@ function productCardHTML(p, opts={}){
     <div class="meta"><span class="rating">★ ${p.rating}</span></div>
     <div class="row-bottom">
       <div class="price">${priceLabel}</div>
-      <button class="btn btn-primary btn-sm" ${!p.available?'disabled':''} onclick="handleProductClick('${p.id}')">${p.available? ((p.customizable||p.comboPizzaCount)?'Customize':'Add') : 'Sold Out'}</button>
+      <button class="btn btn-primary btn-sm" ${!p.available?'disabled':''} onclick="handleProductClick('${p.id}')">${p.available? (p.customizable?'Customize':'Add') : 'Sold Out'}</button>
     </div>
   </div>`;
 }
@@ -1003,7 +1016,6 @@ function renderMenuGrid(){
 function handleProductClick(id){
   const p = findProduct(id);
   if(!p.available){ return; }
-  if(p.comboPizzaCount){ openComboModal(p); return; }
   if(!p.customizable){
     addToCart(p, { size:null, crust:null, extraCheese:false, toppings:[], qty:1, instructions:'' });
     toast(p.name + " added to cart");
@@ -1015,66 +1027,6 @@ function openProductModal(p){
   currentModalProduct = p;
   modalState = { size:'medium', crust:'regular', extraCheese:false, toppings:[], qty:1, instructions:'' };
   renderModal();
-}
-function openComboModal(p){
-  currentModalProduct = p;
-  const firstPizza = DATA.products.find(x=>x.category==='pizza' && x.available);
-  comboModalState = { pizzas: Array(p.comboPizzaCount).fill(firstPizza ? firstPizza.id : ''), qty: 1 };
-  renderComboModal();
-}
-function renderComboModal(){
-  const p = currentModalProduct;
-  const root = document.getElementById('modalRoot');
-  const pizzaOptions = DATA.products.filter(x=>x.category==='pizza' && x.available);
-  root.innerHTML = `
-  <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
-    <div class="modal-box">
-      <button class="modal-close" onclick="closeModal()">✕</button>
-      <div class="modal-hero">${plateHTML(p)}</div>
-      <div class="modal-body">
-        <h3>${p.name}</h3>
-        <p class="desc">${p.desc}</p>
-
-        ${comboModalState.pizzas.map((pid,idx)=>`
-          <div class="opt-group">
-            <div class="lbl">Choose Your Pizza${comboModalState.pizzas.length>1? ' ' + (idx+1) : ''}</div>
-            <select class="instr" style="height:46px;padding:0 12px;" onchange="setComboPizza(${idx}, this.value)">
-              ${pizzaOptions.map(op=>`<option value="${op.id}" ${op.id===pid?'selected':''}>${op.name}</option>`).join('')}
-            </select>
-          </div>
-        `).join('')}
-
-        <div class="opt-group">
-          <div class="lbl">Quantity</div>
-          <div class="qty-control">
-            <button onclick="changeComboQty(-1)">−</button>
-            <span id="modalQtyLabel">${comboModalState.qty}</span>
-            <button onclick="changeComboQty(1)">+</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <div class="tot"><small>Total</small>${rupee(p.price*comboModalState.qty)}</div>
-        <button class="btn btn-primary" onclick="confirmComboAddToCart()">Add to Cart</button>
-      </div>
-    </div>
-  </div>`;
-}
-function setComboPizza(idx, pid){ comboModalState.pizzas[idx] = pid; }
-function changeComboQty(delta){ comboModalState.qty = Math.max(1, comboModalState.qty+delta); renderComboModal(); }
-function confirmComboAddToCart(){
-  const p = currentModalProduct;
-  const pizzaNames = comboModalState.pizzas.map(pid=>{ const pr = DATA.products.find(x=>x.id===pid); return pr ? pr.name : ''; }).filter(Boolean);
-  state.cart.push({
-    lineId: 'l' + Date.now() + Math.random().toString(16).slice(2),
-    productId: p.id, name: p.name, emoji: p.emoji, img: p.img,
-    size:null, crust:null, extraCheese:false, toppings:[],
-    qty: comboModalState.qty, instructions:'', comboPizzas: pizzaNames,
-    unitPrice: p.price, lineTotal: p.price*comboModalState.qty
-  });
-  updateStickyCart();
-  toast(p.name + " added to cart");
-  closeModal();
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; currentModalProduct = null; }
 function calcModalTotal(){
@@ -1243,7 +1195,6 @@ function updateStickyCart(){
 }
 function customizationSummary(item){
   const parts = [];
-  if(item.comboPizzas && item.comboPizzas.length){ parts.push('Pizza: ' + item.comboPizzas.join(' + ')); }
   if(item.size) parts.push(item.size.charAt(0).toUpperCase()+item.size.slice(1));
   if(item.crust && item.crust!=='regular'){ const c = DATA.crusts.find(x=>x.id===item.crust); if(c) parts.push(c.label); }
   if(item.extraCheese) parts.push('Extra Cheese');
@@ -1387,6 +1338,62 @@ function renderCheckoutScreen(){
 }
 function setPaymentMethod(id){ state.paymentMethod = id; renderCheckoutScreen(); }
 
+// Email OTP state — reset whenever the email field changes so an old
+// verification can't be reused for a different address.
+state.emailVerificationToken = null;
+state.verifiedEmail = null;
+
+function onEmailChanged(){
+  state.emailVerificationToken = null;
+  state.verifiedEmail = null;
+  document.getElementById('emailOtpStatus').textContent = '';
+  document.getElementById('otpFieldWrap').style.display = 'none';
+}
+
+async function sendOtp(){
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter a valid email"); return; }
+  const btn = document.getElementById('sendOtpBtn');
+  btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Sending…";
+  try{
+    const r = await fetch('/api/otp/send', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Could not send OTP');
+    document.getElementById('otpFieldWrap').style.display = 'block';
+    document.getElementById('emailOtpStatus').textContent = "OTP sent! Check your inbox (valid 10 minutes).";
+  }catch(e){
+    toast(e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = originalText;
+  }
+}
+
+async function verifyOtp(){
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  const otp = (document.getElementById('customerOtp')?.value || '').trim();
+  if(!otp){ toast("Please enter the OTP"); return; }
+  const btn = document.getElementById('verifyOtpBtn');
+  btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Verifying…";
+  try{
+    const r = await fetch('/api/otp/verify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, otp })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Incorrect OTP');
+    state.emailVerificationToken = data.verificationToken;
+    state.verifiedEmail = email;
+    document.getElementById('emailOtpStatus').textContent = "✅ Email verified.";
+  }catch(e){
+    toast(e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = originalText;
+  }
+}
+
 async function placeOrder(){
   const outlet = state.selectedOutlet;
   const name = (document.getElementById('customerName')?.value || '').trim();
@@ -1395,6 +1402,12 @@ async function placeOrder(){
   if(!outlet || !state.address.text){ toast("Please add your delivery address first"); return; }
   if(!name){ toast("Please enter your name"); return; }
   if(phone.length !== 10){ toast("Please enter a valid 10-digit mobile number"); return; }
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter your email"); return; }
+  if(!state.emailVerificationToken || state.verifiedEmail !== email){
+    toast("Please verify your email with the OTP before placing the order");
+    return;
+  }
   if(!isOutletOpenNow(outlet)){ toast("Sorry, the outlet is currently closed."); return; }
 
   const t = cartTotals();
@@ -1403,7 +1416,8 @@ async function placeOrder(){
   btn.textContent = "Creating order…";
 
   const payload = {
-    customer: { name, phone },
+    customer: { name, phone, email },
+    emailVerificationToken: state.emailVerificationToken,
     items: state.cart,
     totals: t,
     address: state.address,
@@ -1484,10 +1498,10 @@ async function placeOrder(){
 function renderConfirmation(order){
   document.getElementById('confirmCard').innerHTML = `
     <div class="oid">Order #${order.id}</div>
-    <div class="order-line"><span>Outlet</span><span>${order.outlet?.name || ''}</span></div>
+    <div class="order-line"><span>Outlet</span><span>${order.outletName}</span></div>
     ${order.items.map(i=>`<div class="order-line"><span>${i.qty} × ${i.name}</span><span>${rupee(i.lineTotal)}</span></div>`).join('')}
-    <div class="order-line"><span>Delivery Address</span><span>${order.address?.text || ''}</span></div>
-    <div class="order-line"><span>Payment Method</span><span>${paymentLabel(order.paymentMethod)}</span></div>
+    <div class="order-line"><span>Delivery Address</span><span>${order.address}</span></div>
+    <div class="order-line"><span>Payment Method</span><span>${paymentLabel(order.payment)}</span></div>
     <div class="order-line" style="font-weight:800;color:var(--navy)"><span>Total</span><span>${rupee(order.totals.grandTotal)}</span></div>`;
   document.getElementById('trackOrderLine').textContent = "Tracking order #" + order.id;
 }
