@@ -16,7 +16,10 @@ const PORT = process.env.PORT || 3000;
 let mailer = null;
 if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
   mailer = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    family: 4, // force IPv4 — Render's network can't reach Gmail over IPv6
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD
