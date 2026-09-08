@@ -3,7 +3,6 @@ const crypto = require("crypto");
 const path = require("path");
 const mongoose = require("mongoose");
 const Razorpay = require("razorpay");
-const nodemailer = require("nodemailer");
 const Order = require("./models/Order");
 const Product = require("./models/Product");
 
@@ -12,38 +11,32 @@ const PORT = process.env.PORT || 3000;
 
 // ---------------- Email notification setup ----------------
 // Sends an email to the shop owner every time a new order comes in.
-// Uses a Gmail account + an "App Password" (set in .env / Render env vars).
-let mailer = null;
-if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-  mailer = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    family: 4, // force IPv4 — Render's network can't reach Gmail over IPv6
-    connectionTimeout: 20000,
-    greetingTimeout: 20000,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
-    }
-  });
-} else {
-  console.warn("Email notifications are OFF. Add GMAIL_USER and GMAIL_APP_PASSWORD to .env to enable them.");
+// Uses Brevo's HTTP email API (works over port 443, which cloud hosts
+// like Render never block — unlike raw SMTP ports 465/587).
+const emailEnabled = Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
+if (!emailEnabled) {
+  console.warn("Email notifications are OFF. Add BREVO_API_KEY and BREVO_SENDER_EMAIL to .env to enable them.");
 }
 
 async function sendOrderEmail(order) {
-  if (!mailer) return;
+  if (!emailEnabled) return;
   const itemsList = order.items
     .map(it => `- ${it.name} x${it.qty} (₹${it.lineTotal ?? ""})`)
     .join("\n");
-  const notifyTo = process.env.NOTIFY_EMAIL || process.env.GMAIL_USER;
+  const notifyTo = process.env.NOTIFY_EMAIL || process.env.BREVO_SENDER_EMAIL;
   try {
-    await mailer.sendMail({
-      from: `"Bunk And Bite" <${process.env.GMAIL_USER}>`,
-      to: notifyTo,
-      subject: `🍕 New Order ${order.id} — ₹${order.totals?.grandTotal ?? ""}`,
-      text:
+    const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": process.env.BREVO_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({
+        sender: { name: "Bunk And Bite", email: process.env.BREVO_SENDER_EMAIL },
+        to: [{ email: notifyTo }],
+        subject: `🍕 New Order ${order.id} — ₹${order.totals?.grandTotal ?? ""}`,
+        textContent:
 `New order received!
 
 Order ID: ${order.id}
@@ -55,7 +48,12 @@ Items:
 ${itemsList}
 
 Grand Total: ₹${order.totals?.grandTotal ?? ""}`
+      })
     });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Brevo API responded ${resp.status}: ${errText}`);
+    }
     console.log(`Notification email sent for order ${order.id}`);
   } catch (e) {
     console.error("Failed to send notification email:", e.message);
@@ -107,7 +105,7 @@ app.get("/api/health", (req,res) => {
     dbConnected: mongoose.connection.readyState === 1,
     paymentConfigured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
     adminConfigured: Boolean(process.env.ADMIN_PASSWORD),
-    emailConfigured: Boolean(mailer)
+    emailConfigured: emailEnabled
   });
 });
 
