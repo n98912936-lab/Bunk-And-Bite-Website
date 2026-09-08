@@ -1484,10 +1484,10 @@ async function placeOrder(){
 function renderConfirmation(order){
   document.getElementById('confirmCard').innerHTML = `
     <div class="oid">Order #${order.id}</div>
-    <div class="order-line"><span>Outlet</span><span>${order.outletName}</span></div>
+    <div class="order-line"><span>Outlet</span><span>${order.outlet?.name || ''}</span></div>
     ${order.items.map(i=>`<div class="order-line"><span>${i.qty} × ${i.name}</span><span>${rupee(i.lineTotal)}</span></div>`).join('')}
-    <div class="order-line"><span>Delivery Address</span><span>${order.address}</span></div>
-    <div class="order-line"><span>Payment Method</span><span>${paymentLabel(order.payment)}</span></div>
+    <div class="order-line"><span>Delivery Address</span><span>${order.address?.text || ''}</span></div>
+    <div class="order-line"><span>Payment Method</span><span>${paymentLabel(order.paymentMethod)}</span></div>
     <div class="order-line" style="font-weight:800;color:var(--navy)"><span>Total</span><span>${rupee(order.totals.grandTotal)}</span></div>`;
   document.getElementById('trackOrderLine').textContent = "Tracking order #" + order.id;
 }
