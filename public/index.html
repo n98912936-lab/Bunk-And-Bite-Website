@@ -589,8 +589,15 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== ADMIN =================== -->
 <main id="screen-admin" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>Admin Dashboard</h1><p>Demo Admin — changes are stored only for this session.</p></div>
-    <div class="admin-wrap">
+    <div class="screen-hero"><h1>Admin Dashboard</h1><p id="adminSubtitle">Manage your live menu, orders and outlets.</p></div>
+
+    <div id="adminLoginBox" class="co-block" style="max-width:380px;">
+      <div class="field"><label>Admin Password</label><input id="adminPasswordInput" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter') adminLogin()"></div>
+      <button class="btn btn-primary" onclick="adminLogin()">Login</button>
+      <div id="adminLoginError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
+
+    <div id="adminPanelBox" class="admin-wrap hide">
       <div class="admin-side">
         <button class="active" data-tab="overview" onclick="setAdminTab('overview')">📊 Overview</button>
         <button data-tab="products" onclick="setAdminTab('products')">🍕 Products</button>
@@ -865,7 +872,7 @@ function go(view, anchor){
   if(view==='tracking') renderTrackingScreen();
   if(view==='orders') renderOrdersScreen();
   if(view==='favorites') renderFavoritesScreen();
-  if(view==='admin') renderAdminScreen();
+  if(view==='admin') showAdminScreen();
   if(view==='delivery') renderDeliveryScreen();
   updateStickyCart();
   if(anchor){ setTimeout(()=>{ const el=document.getElementById(anchor); if(el) el.scrollIntoView({behavior:'smooth'}); }, 60); }
@@ -1683,45 +1690,96 @@ function openPolicy(key){
 /* ============================================================================
    ADMIN DASHBOARD (demo)
    ============================================================================ */
+let adminProductsCache = [];
+function showAdminScreen(){
+  const savedKey = sessionStorage.getItem('bb_admin_key');
+  if(savedKey){
+    state.adminKey = savedKey;
+    document.getElementById('adminLoginBox').classList.add('hide');
+    document.getElementById('adminPanelBox').classList.remove('hide');
+    setAdminTab('overview');
+  } else {
+    document.getElementById('adminLoginBox').classList.remove('hide');
+    document.getElementById('adminPanelBox').classList.add('hide');
+  }
+}
+async function adminLogin(){
+  const pw = document.getElementById('adminPasswordInput').value;
+  const errBox = document.getElementById('adminLoginError');
+  errBox.textContent = '';
+  if(!pw){ errBox.textContent = 'Please enter the password.'; return; }
+  try{
+    const r = await fetch('/api/admin/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Login failed');
+    state.adminKey = pw;
+    sessionStorage.setItem('bb_admin_key', pw);
+    document.getElementById('adminLoginBox').classList.add('hide');
+    document.getElementById('adminPanelBox').classList.remove('hide');
+    document.getElementById('adminSubtitle').textContent = 'Manage your live menu, orders and outlets.';
+    setAdminTab('overview');
+  }catch(e){
+    errBox.textContent = e.message;
+  }
+}
+function adminHeaders(){
+  return { 'Content-Type':'application/json', 'x-admin-key': state.adminKey || '' };
+}
 function setAdminTab(tab){
   adminTab = tab;
   document.querySelectorAll('.admin-side button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   renderAdminScreen();
 }
-function renderAdminScreen(){
+async function renderAdminScreen(){
   const box = document.getElementById('adminContent');
+  box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
+
   if(adminTab==='overview'){
-    const todaysOrders = state.orders.length;
-    const todaysSales = state.orders.reduce((s,o)=>s+o.totals.grandTotal,0);
-    const pending = state.orders.filter(o=>o.status!=='delivered').length;
-    const completed = state.orders.filter(o=>o.status==='delivered').length;
+    const productsRes = await fetch('/api/products');
+    const products = await productsRes.json();
+    adminProductsCache = products;
+    const ordersRes = await fetch('/api/orders');
+    const orders = await ordersRes.json();
+    const today = new Date().toDateString();
+    const todaysOrders = orders.filter(o=>new Date(o.placedAt).toDateString()===today);
+    const todaysSales = todaysOrders.reduce((s,o)=>s+(o.totals?.grandTotal||0),0);
+    const pending = orders.filter(o=>o.status!=='delivered' && o.status!=='cancelled').length;
+    const completed = orders.filter(o=>o.status==='delivered').length;
     box.innerHTML = `
       <div class="stat-grid">
-        <div class="stat-card"><b>${todaysOrders}</b><span>Today's Orders</span></div>
+        <div class="stat-card"><b>${todaysOrders.length}</b><span>Today's Orders</span></div>
         <div class="stat-card"><b>${rupee(todaysSales)}</b><span>Today's Sales</span></div>
         <div class="stat-card"><b>${pending}</b><span>Pending Orders</span></div>
         <div class="stat-card"><b>${completed}</b><span>Completed Orders</span></div>
       </div>
       <table class="admin-tbl">
         <tr><th>Popular Product</th><th>Category</th><th>Rating</th></tr>
-        ${DATA.products.filter(p=>p.featured).map(p=>`<tr><td>${p.emoji} ${p.name}</td><td>${p.category}</td><td>★ ${p.rating}</td></tr>`).join('')}
+        ${products.filter(p=>p.featured).map(p=>`<tr><td>${p.emoji||''} ${p.name}</td><td>${p.category}</td><td>★ ${p.rating||''}</td></tr>`).join('')}
       </table>`;
   } else if(adminTab==='products'){
+    const r = await fetch('/api/products');
+    const products = await r.json();
+    adminProductsCache = products;
     box.innerHTML = `<table class="admin-tbl">
       <tr><th>Product</th><th>Category</th><th>Price(s)</th><th>Status</th></tr>
-      ${DATA.products.map(p=>`<tr>
-        <td>${p.emoji} ${p.name}</td><td>${p.category}</td>
-        <td>${p.customizable ? `S:<input value="${p.prices.small}" onchange="editProductPrice('${p.id}','small',this.value)"> M:<input value="${p.prices.medium}" onchange="editProductPrice('${p.id}','medium',this.value)"> L:<input value="${p.prices.large}" onchange="editProductPrice('${p.id}','large',this.value)">`
-                          : `<input value="${p.price}" onchange="editProductPrice('${p.id}','flat',this.value)">`}</td>
+      ${products.map(p=>`<tr>
+        <td>${p.emoji||''} ${p.name}</td><td>${p.category}</td>
+        <td>${p.customizable ? `S:<input value="${p.prices.small}" onchange="editProductPrice('${p.id}','small',this.value)" style="width:60px;"> M:<input value="${p.prices.medium}" onchange="editProductPrice('${p.id}','medium',this.value)" style="width:60px;"> L:<input value="${p.prices.large}" onchange="editProductPrice('${p.id}','large',this.value)" style="width:60px;">`
+                          : `<input value="${p.price}" onchange="editProductPrice('${p.id}','flat',this.value)" style="width:70px;">`}</td>
         <td><button class="btn btn-sm ${p.available?'btn-ghost':'btn-secondary'}" onclick="toggleProductAvailability('${p.id}')">${p.available?'Available':'Out of Stock'}</button></td>
       </tr>`).join('')}
     </table>`;
   } else if(adminTab==='orders'){
-    if(state.orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
+    const r = await fetch('/api/orders');
+    const orders = await r.json();
+    if(orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
     box.innerHTML = `<table class="admin-tbl">
       <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Status</th></tr>
-      ${state.orders.map(o=>`<tr>
-        <td>#${o.id}</td><td>${o.outletName}</td><td>${rupee(o.totals.grandTotal)}</td>
+      ${orders.map(o=>`<tr>
+        <td>#${o.id}</td><td>${o.outlet?.name||''}</td><td>${rupee(o.totals?.grandTotal||0)}</td>
         <td><select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
           ${STATUS_STEPS.map(s=>`<option value="${s.id}" ${o.status===s.id?'selected':''}>${s.label}</option>`).join('')}
         </select></td>
@@ -1740,20 +1798,37 @@ function renderAdminScreen(){
     </table>`;
   }
 }
-function editProductPrice(id, key, val){
-  const p = findProduct(id); const num = parseFloat(val);
+async function editProductPrice(id, key, val){
+  const num = parseFloat(val);
   if(isNaN(num)) return;
-  if(key==='flat') p.price = num; else p.prices[key] = num;
-  toast("Price updated (demo — session only)");
-  if(state.view==='home') renderHome(); if(state.view==='menu') renderMenuGrid();
+  const p = adminProductsCache.find(x=>x.id===id);
+  const body = key==='flat' ? { price: num } : { prices: { ...p.prices, [key]: num } };
+  try{
+    const r = await fetch('/api/admin/products/' + encodeURIComponent(id), {
+      method:'PUT', headers: adminHeaders(), body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    toast("Price updated");
+  }catch(e){ toast(e.message); }
 }
-function toggleProductAvailability(id){
-  const p = findProduct(id); p.available = !p.available; renderAdminScreen();
-  if(state.view==='menu') renderMenuGrid();
+async function toggleProductAvailability(id){
+  const p = adminProductsCache.find(x=>x.id===id);
+  try{
+    const r = await fetch('/api/admin/products/' + encodeURIComponent(id), {
+      method:'PUT', headers: adminHeaders(), body: JSON.stringify({ available: !p.available })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    renderAdminScreen();
+  }catch(e){ toast(e.message); }
 }
-function adminSetOrderStatus(orderId, status){
-  const o = state.orders.find(o=>o.id===orderId); if(o){ o.status = status; }
-  if(state.view==='tracking') renderTrackingScreen();
+async function adminSetOrderStatus(orderId, status){
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    toast("Order status updated");
+  }catch(e){ toast(e.message); }
 }
 function toggleCoupon(code){
   const c = DATA.coupons.find(c=>c.code===code); c.active = !c.active; renderAdminScreen();
