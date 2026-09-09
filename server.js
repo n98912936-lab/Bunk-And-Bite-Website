@@ -401,46 +401,58 @@ app.get("/api/orders", async (req,res) => {
 });
 
 app.patch("/api/orders/:id/status", async (req,res) => {
-  const allowed = ["placed","confirmed","preparing","ready","outfordelivery","delivered","cancelled"];
-  const status = req.body.status;
-  const deliveryPartnerName = req.body.deliveryPartnerName;
-  if (!allowed.includes(status)) return res.status(400).json({error:"Invalid status."});
-  const order = await Order.findOne({ id: req.params.id });
-  if (!order) return res.status(404).json({error:"Order not found."});
-  order.status = status;
-  order.updatedAt = new Date();
-  if (deliveryPartnerName) {
-    order.set("deliveryPartnerName", deliveryPartnerName, { strict: false });
+  try {
+    const allowed = ["placed","confirmed","preparing","ready","outfordelivery","delivered","cancelled"];
+    const status = req.body.status;
+    const deliveryPartnerName = req.body.deliveryPartnerName;
+    if (!allowed.includes(status)) return res.status(400).json({error:"Invalid status."});
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({error:"Order not found."});
+    if (!order.customer.email) order.customer.email = `${order.customer.phone}@guest.bunkandbite.local`; // backfill legacy orders
+    order.status = status;
+    order.updatedAt = new Date();
+    if (deliveryPartnerName) {
+      order.set("deliveryPartnerName", deliveryPartnerName, { strict: false });
+    }
+    await order.save();
+    res.json(order);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({error:"Unable to update order status."});
   }
-  await order.save();
-  res.json(order);
 });
 
 // ---------------- Cancel order (customer / delivery / admin) ----------------
 app.patch("/api/orders/:id/cancel", async (req, res) => {
-  const { cancelledBy, name, phone } = req.body; // cancelledBy: "customer" | "delivery" | "admin"
-  const validRoles = ["customer", "delivery", "admin"];
-  if (!validRoles.includes(cancelledBy)) return res.status(400).json({ error: "Invalid cancellation source." });
+  try {
+    const { cancelledBy, name, phone } = req.body; // cancelledBy: "customer" | "delivery" | "admin"
+    const validRoles = ["customer", "delivery", "admin"];
+    if (!validRoles.includes(cancelledBy)) return res.status(400).json({ error: "Invalid cancellation source." });
 
-  const order = await Order.findOne({ id: req.params.id });
-  if (!order) return res.status(404).json({ error: "Order not found." });
-  if (order.status === "delivered") return res.status(400).json({ error: "Delivered orders can't be cancelled." });
-  if (order.status === "cancelled") return res.status(400).json({ error: "This order is already cancelled." });
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    if (order.status === "delivered") return res.status(400).json({ error: "Delivered orders can't be cancelled." });
+    if (order.status === "cancelled") return res.status(400).json({ error: "This order is already cancelled." });
 
-  // A customer can only cancel their own order — verify by phone match.
-  if (cancelledBy === "customer") {
-    if (!phone || phone !== order.customer.phone) {
-      return res.status(403).json({ error: "Phone number does not match this order." });
+    // A customer can only cancel their own order — verify by phone match.
+    if (cancelledBy === "customer") {
+      if (!phone || phone !== order.customer.phone) {
+        return res.status(403).json({ error: "Phone number does not match this order." });
+      }
     }
-  }
 
-  order.status = "cancelled";
-  order.updatedAt = new Date();
-  order.set("cancelledBy", cancelledBy, { strict: false });
-  order.set("cancelledByName", name || "", { strict: false });
-  order.set("cancelledAt", new Date(), { strict: false });
-  await order.save();
-  res.json(order);
+    if (!order.customer.email) order.customer.email = `${order.customer.phone}@guest.bunkandbite.local`; // backfill legacy orders
+    order.status = "cancelled";
+    order.updatedAt = new Date();
+    order.set("cancelledBy", cancelledBy, { strict: false });
+    order.set("cancelledByName", name || "", { strict: false });
+    order.set("cancelledAt", new Date(), { strict: false });
+    await order.save();
+    res.json(order);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Unable to cancel order." });
+  }
 });
 
 // ---------------- Delivery partner stats ----------------
