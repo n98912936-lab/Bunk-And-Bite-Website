@@ -309,6 +309,7 @@ textarea.instr{width:100%;border:1px solid var(--line);border-radius:12px;paddin
 .st.placed{background:#FFF1E8;color:#b45309;}
 .st.transit{background:#FFF7D6;color:#8a6d00;}
 .st.delivered{background:#eafaf0;color:var(--green);}
+.st.cancelled{background:#FFEAEA;color:var(--red);}
 
 /* ---------- admin / delivery ---------- */
 .admin-wrap{display:grid;grid-template-columns:220px 1fr;gap:26px;min-height:70vh;}
@@ -1623,15 +1624,31 @@ function renderOrdersScreen(){
   }
   box.innerHTML = myOrdersCache.map(o=>{
     const stClass = o.status==='delivered' ? 'delivered' : (o.status==='placed'||o.status==='confirmed') ? 'placed' : 'transit';
+    const canCancel = o.status!=='delivered' && o.status!=='cancelled';
     return `<div class="order-row">
-      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outlet?.name||''}</div></div>
+      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outlet?.name||''}</div>
+      ${o.status==='cancelled' ? `<div style="font-size:11.5px;color:var(--red);">Cancelled by ${o.cancelledBy||'—'}</div>` : ''}</div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span class="st ${stClass}">${STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status}</span>
+        <span class="st ${o.status==='cancelled'?'cancelled':stClass}">${o.status==='cancelled' ? 'Cancelled' : (STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status)}</span>
         <button class="btn btn-ghost btn-sm" onclick="trackThisOrder('${o.id}')">Track</button>
         <button class="btn btn-ghost btn-sm" onclick="reorder('${o.id}')">Reorder</button>
+        ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="customerCancelOrder('${o.id}')">Cancel</button>` : ''}
       </div>
     </div>`;
   }).join('') + `<p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
+}
+async function customerCancelOrder(orderId){
+  if(!confirm("Are you sure you want to cancel this order?")) return;
+  const phone = localStorage.getItem('bb_customer_phone') || '';
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cancelledBy:'customer', phone })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
+    toast("Order cancelled");
+    loadMyOrders();
+  }catch(e){ toast(e.message); }
 }
 function showOrdersLookup(){
   document.getElementById('ordersLookup').classList.remove('hide');
@@ -1767,13 +1784,15 @@ async function renderAdminScreen(){
     const orders = await r.json();
     if(orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
     box.innerHTML = `<table class="admin-tbl">
-      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Delivered By</th><th>Status</th></tr>
+      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Delivered By</th><th>Status</th><th>Cancelled By</th><th></th></tr>
       ${orders.map(o=>`<tr>
         <td>#${o.id}</td><td>${o.outlet?.name||''}</td><td>${rupee(o.totals?.grandTotal||0)}</td>
         <td>${o.deliveryPartnerName || '—'}</td>
-        <td><select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
+        <td>${o.status==='cancelled' ? '<span style="color:var(--red);font-weight:700;">Cancelled</span>' : `<select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
           ${STATUS_STEPS.map(s=>`<option value="${s.id}" ${o.status===s.id?'selected':''}>${s.label}</option>`).join('')}
-        </select></td>
+        </select>`}</td>
+        <td>${o.status==='cancelled' ? `${o.cancelledBy||'—'}${o.cancelledByName ? ' ('+o.cancelledByName+')' : ''}` : '—'}</td>
+        <td>${(o.status!=='delivered' && o.status!=='cancelled') ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="adminCancelOrder('${o.id}')">Cancel</button>` : ''}</td>
       </tr>`).join('')}
     </table>`;
   } else if(adminTab==='outlets'){
@@ -1819,6 +1838,18 @@ async function adminSetOrderStatus(orderId, status){
     });
     if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
     toast("Order status updated");
+  }catch(e){ toast(e.message); }
+}
+async function adminCancelOrder(orderId){
+  if(!confirm("Cancel this order?")) return;
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cancelledBy:'admin', name:'Admin' })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
+    toast("Order cancelled");
+    renderAdminScreen();
   }catch(e){ toast(e.message); }
 }
 function toggleCoupon(code){
@@ -1927,6 +1958,7 @@ async function renderDeliveryScreen(){
         <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}" target="_blank">💬 WhatsApp</a> 
         <button class="btn btn-ghost btn-sm" onclick="openNavigate('${o.id}')">🗺️ Navigate</button> 
         <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}', '${o.status}')">Advance Status →</button> 
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deliveryCancelOrder('${o.id}')">Cancel Order</button> 
       </div> 
     </div>`).join(''); 
 } 
@@ -1950,6 +1982,18 @@ async function advanceDelivery(orderId, currentStatus){
     renderDeliveryScreen(); 
   }catch(e){ toast("Error: " + e.message); }
 } 
+async function deliveryCancelOrder(orderId){
+  if(!confirm("Cancel this order?")) return;
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cancelledBy:'delivery', name: state.deliveryName || '' })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
+    toast("Order cancelled");
+    renderDeliveryScreen();
+  }catch(e){ toast("Error: " + e.message); }
+}
  
 /* ============================================================================ 
    INIT 
