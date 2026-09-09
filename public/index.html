@@ -23,7 +23,6 @@
   --ink-soft:#6b6055;
   --line:#EEE3D6;
   --green:#2E8B57;
-  --blue:#2563EB;
   --radius-lg:26px;
   --radius-md:16px;
   --radius-sm:10px;
@@ -291,9 +290,9 @@ textarea.instr{width:100%;border:1px solid var(--line);border-radius:12px;paddin
 .tstep:last-child{padding-bottom:0;}
 .tstep .connector{position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line);}
 .tstep:last-child .connector{display:none;}
-.tstep.done .connector{background:var(--blue);}
+.tstep.done .connector{background:var(--green);}
 .tstep .dot{width:40px;height:40px;border-radius:50%;background:#fff;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;z-index:1;}
-.tstep.done .dot{background:var(--blue);border-color:var(--blue);color:#fff;}
+.tstep.done .dot{background:var(--green);border-color:var(--green);color:#fff;}
 .tstep.active .dot{background:var(--yellow);border-color:var(--yellow);animation:pulse2 1.5s infinite;}
 @keyframes pulse2{0%{box-shadow:0 0 0 0 rgba(245,163,0,.5);}70%{box-shadow:0 0 0 10px rgba(245,163,0,0);}100%{box-shadow:0 0 0 0 rgba(245,163,0,0);}}
 .tstep h5{font-size:14.5px;margin-bottom:3px;}
@@ -309,7 +308,6 @@ textarea.instr{width:100%;border:1px solid var(--line);border-radius:12px;paddin
 .st.placed{background:#FFF1E8;color:#b45309;}
 .st.transit{background:#FFF7D6;color:#8a6d00;}
 .st.delivered{background:#eafaf0;color:var(--green);}
-.st.cancelled{background:#FFEAEA;color:var(--red);}
 
 /* ---------- admin / delivery ---------- */
 .admin-wrap{display:grid;grid-template-columns:220px 1fr;gap:26px;min-height:70vh;}
@@ -505,6 +503,21 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           <h4><span class="num">1</span> Customer & Delivery Address</h4>
           <div class="field"><label>Full Name</label><input id="customerName" placeholder="Your name" autocomplete="name"></div>
           <div class="field"><label>Mobile Number</label><input id="customerPhone" placeholder="10-digit mobile number" inputmode="tel" autocomplete="tel"></div>
+          <div class="field">
+            <label>Email</label>
+            <div style="display:flex;gap:8px;">
+              <input id="customerEmail" placeholder="you@example.com" type="email" autocomplete="email" style="flex:1;" oninput="onEmailChanged()">
+              <button type="button" class="btn btn-ghost btn-sm" id="sendOtpBtn" onclick="sendOtp()">Send OTP</button>
+            </div>
+          </div>
+          <div class="field" id="otpFieldWrap" style="display:none;">
+            <label>Enter OTP</label>
+            <div style="display:flex;gap:8px;">
+              <input id="customerOtp" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="flex:1;">
+              <button type="button" class="btn btn-ghost btn-sm" id="verifyOtpBtn" onclick="verifyOtp()">Verify</button>
+            </div>
+          </div>
+          <div id="emailOtpStatus" style="font-size:13px;color:var(--ink-soft);margin-top:2px;"></div>
           <div class="addr-opts">
             <button class="btn btn-ghost btn-sm" onclick="useCurrentLocation()">📍 Use Current Location</button>
             <button class="btn btn-ghost btn-sm" onclick="toggleManualAddr()">✏️ Enter Manually</button>
@@ -560,12 +573,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== MY ORDERS =================== -->
 <main id="screen-orders" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>My Orders</h1><p>Your real order history, looked up by mobile number.</p></div>
-    <div id="ordersLookup" class="co-block hide" style="max-width:380px;">
-      <div class="field"><label>Mobile Number</label><input id="ordersPhoneInput" placeholder="10-digit mobile number" inputmode="tel" maxlength="10" onkeydown="if(event.key==='Enter') loadMyOrders()"></div>
-      <button class="btn btn-primary" onclick="loadMyOrders()">View My Orders</button>
-      <div id="ordersLookupError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
-    </div>
+    <div class="screen-hero"><h1>My Orders</h1><p>Demo order history for this session.</p></div>
     <div id="ordersList"></div>
   </div>
 </main>
@@ -608,7 +616,6 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
     <div class="screen-hero"><h1>Delivery Dashboard</h1><p id="deliverySubtitle">Track and update assigned deliveries.</p></div>
 
     <div id="deliveryLoginBox" class="co-block" style="max-width:380px;">
-      <div class="field"><label>Your Name</label><input id="deliveryNameInput" placeholder="e.g. Rahul Kumar"></div>
       <div class="field"><label>Delivery Password</label><input id="deliveryPasswordInput" type="password" placeholder="Enter delivery password" onkeydown="if(event.key==='Enter') deliveryLogin()"></div>
       <button class="btn btn-primary" onclick="deliveryLogin()">Login</button>
       <div id="deliveryLoginError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
@@ -660,7 +667,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
       </div>
     </div>
     <div class="foot-bottom">
-      <span>© 2026 Bunk And Bite. All rights reserved.</span>
+      <span>© 2026 Bunk And Bite. Demo site built for Niraj Pandit.</span>
       <span>Made with 🍕 in Pune</span>
     </div>
   </div>
@@ -870,7 +877,7 @@ function go(view, anchor){
   if(view==='cart') renderCartScreen();
   if(view==='checkout') renderCheckoutScreen();
   if(view==='tracking') renderTrackingScreen();
-  if(view==='orders') loadMyOrders();
+  if(view==='orders') renderOrdersScreen();
   if(view==='favorites') renderFavoritesScreen();
   if(view==='admin') showAdminScreen();
   if(view==='delivery') showDeliveryScreen();
@@ -1409,6 +1416,57 @@ function renderCheckoutScreen(){
 }
 function setPaymentMethod(id){ state.paymentMethod = id; renderCheckoutScreen(); }
 
+function onEmailChanged(){
+  state.emailVerificationToken = null;
+  state.verifiedEmail = null;
+  document.getElementById('emailOtpStatus').textContent = '';
+  document.getElementById('otpFieldWrap').style.display = 'none';
+}
+
+async function sendOtp(){
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter a valid email"); return; }
+  const btn = document.getElementById('sendOtpBtn');
+  btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Sending…";
+  try{
+    const r = await fetch('/api/otp/send', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Could not send OTP');
+    document.getElementById('otpFieldWrap').style.display = 'block';
+    document.getElementById('emailOtpStatus').textContent = "OTP sent! Check your inbox (valid 10 minutes).";
+  }catch(e){
+    toast(e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = originalText;
+  }
+}
+
+async function verifyOtp(){
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  const otp = (document.getElementById('customerOtp')?.value || '').trim();
+  if(!otp){ toast("Please enter the OTP"); return; }
+  const btn = document.getElementById('verifyOtpBtn');
+  btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Verifying…";
+  try{
+    const r = await fetch('/api/otp/verify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, otp })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Incorrect OTP');
+    state.emailVerificationToken = data.verificationToken;
+    state.verifiedEmail = email;
+    document.getElementById('emailOtpStatus').textContent = "✅ Email verified.";
+  }catch(e){
+    toast(e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = originalText;
+  }
+}
+
 async function placeOrder(){
   const outlet = state.selectedOutlet;
   const name = (document.getElementById('customerName')?.value || '').trim();
@@ -1417,6 +1475,12 @@ async function placeOrder(){
   if(!outlet || !state.address.text){ toast("Please add your delivery address first"); return; }
   if(!name){ toast("Please enter your name"); return; }
   if(phone.length !== 10){ toast("Please enter a valid 10-digit mobile number"); return; }
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter your email"); return; }
+  if(!state.emailVerificationToken || state.verifiedEmail !== email){
+    toast("Please verify your email with the OTP before placing the order");
+    return;
+  }
   if(!isOutletOpenNow(outlet)){ toast("Sorry, the outlet is currently closed."); return; }
 
   const t = cartTotals();
@@ -1425,7 +1489,8 @@ async function placeOrder(){
   btn.textContent = "Creating order…";
 
   const payload = {
-    customer: { name, phone },
+    customer: { name, phone, email },
+    emailVerificationToken: state.emailVerificationToken,
     items: state.cart,
     totals: t,
     address: state.address,
@@ -1549,11 +1614,6 @@ function simulateOrderProgress(orderId){
   }, 5000);
 }
 
-const SIMPLE_STEPS = [
-  {label:'Preparing your order', em:'🍕', match:['placed','confirmed','preparing','ready']},
-  {label:'Out for Delivery', em:'🛵', match:['outfordelivery']},
-  {label:'Delivered', em:'🎉', match:['delivered']}
-];
 function renderTrackingScreen(){
   const box = document.getElementById('trackContent');
   const order = state.orders[0];
@@ -1562,19 +1622,15 @@ function renderTrackingScreen(){
     box.innerHTML = `<div class="empty-state"><div class="em">📦</div><h3>No active orders</h3><p>Place an order to see live tracking here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>`;
     return;
   }
-  if(order.status==='cancelled'){
-    box.innerHTML = `<div class="empty-state"><div class="em">❌</div><h3>Order Cancelled</h3><p>Order #${order.id} was cancelled.</p></div>`;
-    return;
-  }
-  const currentIndex = SIMPLE_STEPS.findIndex(s=>s.match.includes(order.status));
+  const currentIndex = STATUS_STEPS.findIndex(s=>s.id===order.status);
   box.innerHTML = `
     <div class="track-steps">
-      ${SIMPLE_STEPS.map((s,idx)=>{
+      ${STATUS_STEPS.map((s,idx)=>{
         const done = idx < currentIndex, active = idx===currentIndex;
         return `<div class="tstep ${done?'done':''} ${active?'active':''}"><div class="connector"></div><div class="dot">${done?'✓':s.em}</div><div><h5>${s.label}</h5><p>${active?'In progress…':(done?'Completed':'Pending')}</p></div></div>`;
       }).join('')}
     </div>
-    ${order.status==='outfordelivery' ? `<div class="live-map"><div class="rider">🛵</div><span>Your order is on the way!</span></div>` : ''}
+    ${order.status==='outfordelivery' ? `<div class="live-map"><div class="rider">🛵</div><span>Simulated live location — demo tracking only</span></div>` : ''}
     <div class="order-card" style="margin-top:24px;">
       <div class="oid">Order #${order.id}</div>
       ${order.items.map(i=>`<div class="order-line"><span>${i.qty} × ${i.name}</span><span>${rupee(i.lineTotal)}</span></div>`).join('')}
@@ -1585,82 +1641,26 @@ function renderTrackingScreen(){
 /* ============================================================================
    MY ORDERS
    ============================================================================ */
-let myOrdersCache = [];
-async function loadMyOrders(){
-  const inputPhone = document.getElementById('ordersPhoneInput')?.value.replace(/\D/g,'');
-  const phone = inputPhone || localStorage.getItem('bb_customer_phone') || '';
-  const errBox = document.getElementById('ordersLookupError');
-  if(!phone || phone.length !== 10){
-    if(errBox) errBox.textContent = 'Please enter a valid 10-digit mobile number.';
-    document.getElementById('ordersLookup').classList.remove('hide');
-    return;
-  }
-  if(errBox) errBox.textContent = '';
-  localStorage.setItem('bb_customer_phone', phone);
-  const box = document.getElementById('ordersList');
-  box.innerHTML = `<p style="color:var(--ink-soft);">Loading your orders…</p>`;
-  try{
-    const r = await fetch('/api/orders?phone=' + encodeURIComponent(phone));
-    const orders = await r.json();
-    myOrdersCache = orders;
-    renderOrdersScreen();
-  }catch(e){
-    box.innerHTML = `<div class="empty-state"><div class="em">⚠️</div><h3>Could not load orders</h3><p>Please try again.</p></div>`;
-  }
-}
 function renderOrdersScreen(){
   const box = document.getElementById('ordersList');
-  const savedPhone = localStorage.getItem('bb_customer_phone');
-  if(!savedPhone){
-    document.getElementById('ordersLookup').classList.remove('hide');
-    box.innerHTML = '';
+  if(state.orders.length===0){
+    box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Your order history for this session will show up here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>`;
     return;
   }
-  document.getElementById('ordersLookup').classList.add('hide');
-  if(myOrdersCache.length===0){
-    box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Your order history will show up here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>
-      <p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
-    return;
-  }
-  box.innerHTML = myOrdersCache.map(o=>{
+  box.innerHTML = state.orders.map(o=>{
     const stClass = o.status==='delivered' ? 'delivered' : (o.status==='placed'||o.status==='confirmed') ? 'placed' : 'transit';
-    const canCancel = o.status!=='delivered' && o.status!=='cancelled';
     return `<div class="order-row">
-      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outlet?.name||''}</div>
-      ${o.status==='cancelled' ? `<div style="font-size:11.5px;color:var(--red);">Cancelled by ${o.cancelledBy||'—'}</div>` : ''}</div>
+      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outletName}</div></div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span class="st ${o.status==='cancelled'?'cancelled':stClass}">${o.status==='cancelled' ? 'Cancelled' : (STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status)}</span>
-        <button class="btn btn-ghost btn-sm" onclick="trackThisOrder('${o.id}')">Track</button>
+        <span class="st ${stClass}">${STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status}</span>
+        <button class="btn btn-ghost btn-sm" onclick="go('tracking')">Track</button>
         <button class="btn btn-ghost btn-sm" onclick="reorder('${o.id}')">Reorder</button>
-        ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="customerCancelOrder('${o.id}')">Cancel</button>` : ''}
       </div>
     </div>`;
-  }).join('') + `<p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
-}
-async function customerCancelOrder(orderId){
-  if(!confirm("Are you sure you want to cancel this order?")) return;
-  const phone = localStorage.getItem('bb_customer_phone') || '';
-  try{
-    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ cancelledBy:'customer', phone })
-    });
-    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
-    toast("Order cancelled");
-    loadMyOrders();
-  }catch(e){ toast(e.message); }
-}
-function showOrdersLookup(){
-  document.getElementById('ordersLookup').classList.remove('hide');
-  document.getElementById('ordersPhoneInput').value = '';
-}
-function trackThisOrder(orderId){
-  const order = myOrdersCache.find(o=>o.id===orderId);
-  if(order){ state.orders = [order]; }
-  go('tracking');
+  }).join('');
 }
 function reorder(orderId){
-  const order = myOrdersCache.find(o=>o.id===orderId);
+  const order = state.orders.find(o=>o.id===orderId);
   if(!order) return;
   order.items.forEach(i=> state.cart.push({...i, lineId:'l'+Date.now()+Math.random()}));
   updateStickyCart();
@@ -1784,15 +1784,12 @@ async function renderAdminScreen(){
     const orders = await r.json();
     if(orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
     box.innerHTML = `<table class="admin-tbl">
-      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Delivered By</th><th>Status</th><th>Cancelled By</th><th></th></tr>
+      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Status</th></tr>
       ${orders.map(o=>`<tr>
         <td>#${o.id}</td><td>${o.outlet?.name||''}</td><td>${rupee(o.totals?.grandTotal||0)}</td>
-        <td>${o.deliveryPartnerName || '—'}</td>
-        <td>${o.status==='cancelled' ? '<span style="color:var(--red);font-weight:700;">Cancelled</span>' : `<select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
+        <td><select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
           ${STATUS_STEPS.map(s=>`<option value="${s.id}" ${o.status===s.id?'selected':''}>${s.label}</option>`).join('')}
-        </select>`}</td>
-        <td>${o.status==='cancelled' ? `${o.cancelledBy||'—'}${o.cancelledByName ? ' ('+o.cancelledByName+')' : ''}` : '—'}</td>
-        <td>${(o.status!=='delivered' && o.status!=='cancelled') ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="adminCancelOrder('${o.id}')">Cancel</button>` : ''}</td>
+        </select></td>
       </tr>`).join('')}
     </table>`;
   } else if(adminTab==='outlets'){
@@ -1840,18 +1837,6 @@ async function adminSetOrderStatus(orderId, status){
     toast("Order status updated");
   }catch(e){ toast(e.message); }
 }
-async function adminCancelOrder(orderId){
-  if(!confirm("Cancel this order?")) return;
-  try{
-    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ cancelledBy:'admin', name:'Admin' })
-    });
-    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
-    toast("Order cancelled");
-    renderAdminScreen();
-  }catch(e){ toast(e.message); }
-}
 function toggleCoupon(code){
   const c = DATA.coupons.find(c=>c.code===code); c.active = !c.active; renderAdminScreen();
 }
@@ -1861,10 +1846,8 @@ function toggleCoupon(code){
    ============================================================================ */
 function showDeliveryScreen(){
   const savedKey = sessionStorage.getItem('bb_delivery_key');
-  const savedName = sessionStorage.getItem('bb_delivery_name');
-  if(savedKey && savedName){
+  if(savedKey){
     state.deliveryKey = savedKey;
-    state.deliveryName = savedName;
     document.getElementById('deliveryLoginBox').classList.add('hide');
     document.getElementById('deliveryContent').classList.remove('hide');
     renderDeliveryScreen();
@@ -1874,11 +1857,9 @@ function showDeliveryScreen(){
   }
 }
 async function deliveryLogin(){
-  const name = (document.getElementById('deliveryNameInput').value || '').trim();
   const pw = document.getElementById('deliveryPasswordInput').value;
   const errBox = document.getElementById('deliveryLoginError');
   errBox.textContent = '';
-  if(!name){ errBox.textContent = 'Please enter your name.'; return; }
   if(!pw){ errBox.textContent = 'Please enter the password.'; return; }
   try{
     const r = await fetch('/api/delivery/login', {
@@ -1888,9 +1869,7 @@ async function deliveryLogin(){
     const data = await r.json();
     if(!r.ok) throw new Error(data.error || 'Login failed');
     state.deliveryKey = pw;
-    state.deliveryName = name;
     sessionStorage.setItem('bb_delivery_key', pw);
-    sessionStorage.setItem('bb_delivery_name', name);
     document.getElementById('deliveryLoginBox').classList.add('hide');
     document.getElementById('deliveryContent').classList.remove('hide');
     renderDeliveryScreen();
@@ -1898,54 +1877,58 @@ async function deliveryLogin(){
     errBox.textContent = e.message;
   }
 }
-function cleanAddressForMaps(text){
-  return (text || '').replace(/[\/\\]/g, ' ').replace(/\s+/g, ' ').trim();
+function navigateLink(order){
+  if(order.address?.lat && order.address?.lng){
+    return `https://www.google.com/maps/dir/?api=1&destination=${order.address.lat},${order.address.lng}`;
+  }
+  const q = encodeURIComponent(order.address?.text || '');
+  return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
 }
 let deliveryOrdersCache = [];
-function openNavigate(orderId){
-  const o = deliveryOrdersCache.find(x=>x.id===orderId);
-  if(!o) return;
-  const dest = (o.address?.lat && o.address?.lng)
-    ? `${o.address.lat},${o.address.lng}`
-    : encodeURIComponent(cleanAddressForMaps(o.address?.text) + (o.address?.pincode ? (', ' + o.address.pincode) : '') + ', India');
+function navigateWithCurrentLocation(orderId){
+  const order = deliveryOrdersCache.find(o=>o.id===orderId);
+  if(!order){ toast('Order not found'); return; }
+  const destination = (order.address?.lat && order.address?.lng)
+    ? `${order.address.lat},${order.address.lng}`
+    : encodeURIComponent(order.address?.text || '');
+  const openMaps = (originParam)=>{
+    const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destination}&travelmode=driving`;
+    window.open(url, '_blank');
+  };
   if(!navigator.geolocation){
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
+    // Browser can't get GPS location — Maps will still ask for/use current location once opened.
+    openMaps('');
     return;
   }
-  toast("Getting your current location…");
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
-    window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`, '_blank');
-  }, err=>{
-    // Location denied or unavailable — Maps will still ask/use device location itself
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
-  }, { enableHighAccuracy:true, timeout:8000 });
+  toast('Getting your location…');
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+      openMaps(`&origin=${origin}`);
+    },
+    (err)=>{
+      // Location permission denied/unavailable — fall back to destination-only link.
+      toast('Could not get your location — opening map with destination only');
+      openMaps('');
+    },
+    { enableHighAccuracy:true, timeout:8000 }
+  );
 }
 async function renderDeliveryScreen(){
   const box = document.getElementById('deliveryContent');
   box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
-  const [r, statsR] = await Promise.all([
-    fetch('/api/orders'),
-    fetch('/api/delivery/stats?name=' + encodeURIComponent(state.deliveryName || ''))
-  ]);
+  const r = await fetch('/api/orders');
   const orders = await r.json();
-  const stats = statsR.ok ? await statsR.json() : { delivered: 0 };
   const active = orders.filter(o=>o.status!=='delivered' && o.status!=='cancelled');
-  deliveryOrdersCache = active;
-  const profileCard = `
-    <div class="co-block" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div>
-        <div style="font-weight:800;font-family:var(--font-display);font-size:16px;">👋 ${state.deliveryName || 'Delivery Partner'}</div>
-        <div style="font-size:12.5px;color:var(--ink-soft);">Total Delivered: ${stats.delivered} · Active Now: ${active.length}</div>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="deliveryLogout()">Logout</button>
-    </div>`;
   if(active.length===0){
-    box.innerHTML = profileCard + `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
+    box.innerHTML = `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
     return;
   }
   const outlet = DATA.outlets[0];
-  box.innerHTML = profileCard + active.map(o=>`
+  deliveryOrdersCache = active;
+  box.innerHTML = active.map(o=>{
+    const waText = encodeURIComponent(`Hi ${o.customer?.name||''}, your Bunk And Bite order #${o.id} is on the way! Delivery address: ${o.address?.text||''}. — Delivery partner`);
+    return `
     <div class="deliv-card">
       <div class="top">
         <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.paymentMethod==='cod'?('COD: '+rupee(o.totals.grandTotal)):'Prepaid (₹0 to collect)'}</div></div>
@@ -1955,19 +1938,13 @@ async function renderDeliveryScreen(){
       <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Customer:</b> ${o.customer?.name||''}</div>
       <div class="actions">
         <a class="btn btn-ghost btn-sm" href="tel:${o.customer?.phone||''}">📞 Call Customer</a>
-        <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}" target="_blank">💬 WhatsApp</a> 
-        <button class="btn btn-ghost btn-sm" onclick="openNavigate('${o.id}')">🗺️ Navigate</button> 
+        <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}?text=${waText}" target="_blank">💬 WhatsApp</a>
+        <button class="btn btn-ghost btn-sm" onclick="navigateWithCurrentLocation('${o.id}')">🗺️ Navigate</button>
         <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}', '${o.status}')">Advance Status →</button> 
-        <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deliveryCancelOrder('${o.id}')">Cancel Order</button> 
       </div> 
-    </div>`).join(''); 
+    </div>`;
+  }).join('');
 } 
-function deliveryLogout(){
-  sessionStorage.removeItem('bb_delivery_key');
-  sessionStorage.removeItem('bb_delivery_name');
-  state.deliveryKey = null; state.deliveryName = null;
-  showDeliveryScreen();
-}
 async function advanceDelivery(orderId, currentStatus){ 
   const seq = STATUS_STEPS.map(s=>s.id); 
   const i = seq.indexOf(currentStatus); 
@@ -1975,25 +1952,12 @@ async function advanceDelivery(orderId, currentStatus){
   const nextStatus = seq[i+1];
   try{
     const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {
-      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus, deliveryPartnerName: state.deliveryName || '' })
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus })
     });
     if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
-    toast("Marked as: " + (STATUS_STEPS.find(s=>s.id===nextStatus)?.label || nextStatus));
     renderDeliveryScreen(); 
-  }catch(e){ toast("Error: " + e.message); }
+  }catch(e){ toast(e.message); }
 } 
-async function deliveryCancelOrder(orderId){
-  if(!confirm("Cancel this order?")) return;
-  try{
-    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ cancelledBy:'delivery', name: state.deliveryName || '' })
-    });
-    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
-    toast("Order cancelled");
-    renderDeliveryScreen();
-  }catch(e){ toast("Error: " + e.message); }
-}
  
 /* ============================================================================ 
    INIT 
