@@ -559,7 +559,12 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== MY ORDERS =================== -->
 <main id="screen-orders" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>My Orders</h1><p>Demo order history for this session.</p></div>
+    <div class="screen-hero"><h1>My Orders</h1><p>Your real order history, looked up by mobile number.</p></div>
+    <div id="ordersLookup" class="co-block hide" style="max-width:380px;">
+      <div class="field"><label>Mobile Number</label><input id="ordersPhoneInput" placeholder="10-digit mobile number" inputmode="tel" maxlength="10" onkeydown="if(event.key==='Enter') loadMyOrders()"></div>
+      <button class="btn btn-primary" onclick="loadMyOrders()">View My Orders</button>
+      <div id="ordersLookupError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
     <div id="ordersList"></div>
   </div>
 </main>
@@ -864,7 +869,7 @@ function go(view, anchor){
   if(view==='cart') renderCartScreen();
   if(view==='checkout') renderCheckoutScreen();
   if(view==='tracking') renderTrackingScreen();
-  if(view==='orders') renderOrdersScreen();
+  if(view==='orders') loadMyOrders();
   if(view==='favorites') renderFavoritesScreen();
   if(view==='admin') showAdminScreen();
   if(view==='delivery') showDeliveryScreen();
@@ -1579,26 +1584,66 @@ function renderTrackingScreen(){
 /* ============================================================================
    MY ORDERS
    ============================================================================ */
-function renderOrdersScreen(){
-  const box = document.getElementById('ordersList');
-  if(state.orders.length===0){
-    box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Your order history for this session will show up here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>`;
+let myOrdersCache = [];
+async function loadMyOrders(){
+  const inputPhone = document.getElementById('ordersPhoneInput')?.value.replace(/\D/g,'');
+  const phone = inputPhone || localStorage.getItem('bb_customer_phone') || '';
+  const errBox = document.getElementById('ordersLookupError');
+  if(!phone || phone.length !== 10){
+    if(errBox) errBox.textContent = 'Please enter a valid 10-digit mobile number.';
+    document.getElementById('ordersLookup').classList.remove('hide');
     return;
   }
-  box.innerHTML = state.orders.map(o=>{
+  if(errBox) errBox.textContent = '';
+  localStorage.setItem('bb_customer_phone', phone);
+  const box = document.getElementById('ordersList');
+  box.innerHTML = `<p style="color:var(--ink-soft);">Loading your orders…</p>`;
+  try{
+    const r = await fetch('/api/orders?phone=' + encodeURIComponent(phone));
+    const orders = await r.json();
+    myOrdersCache = orders;
+    renderOrdersScreen();
+  }catch(e){
+    box.innerHTML = `<div class="empty-state"><div class="em">⚠️</div><h3>Could not load orders</h3><p>Please try again.</p></div>`;
+  }
+}
+function renderOrdersScreen(){
+  const box = document.getElementById('ordersList');
+  const savedPhone = localStorage.getItem('bb_customer_phone');
+  if(!savedPhone){
+    document.getElementById('ordersLookup').classList.remove('hide');
+    box.innerHTML = '';
+    return;
+  }
+  document.getElementById('ordersLookup').classList.add('hide');
+  if(myOrdersCache.length===0){
+    box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Your order history will show up here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>
+      <p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
+    return;
+  }
+  box.innerHTML = myOrdersCache.map(o=>{
     const stClass = o.status==='delivered' ? 'delivered' : (o.status==='placed'||o.status==='confirmed') ? 'placed' : 'transit';
     return `<div class="order-row">
-      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outletName}</div></div>
+      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outlet?.name||''}</div></div>
       <div style="display:flex;align-items:center;gap:10px;">
         <span class="st ${stClass}">${STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status}</span>
-        <button class="btn btn-ghost btn-sm" onclick="go('tracking')">Track</button>
+        <button class="btn btn-ghost btn-sm" onclick="trackThisOrder('${o.id}')">Track</button>
         <button class="btn btn-ghost btn-sm" onclick="reorder('${o.id}')">Reorder</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + `<p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
+}
+function showOrdersLookup(){
+  document.getElementById('ordersLookup').classList.remove('hide');
+  document.getElementById('ordersPhoneInput').value = '';
+}
+function trackThisOrder(orderId){
+  const order = myOrdersCache.find(o=>o.id===orderId);
+  if(order){ state.orders = [order]; }
+  go('tracking');
 }
 function reorder(orderId){
-  const order = state.orders.find(o=>o.id===orderId);
+  const order = myOrdersCache.find(o=>o.id===orderId);
   if(!order) return;
   order.items.forEach(i=> state.cart.push({...i, lineId:'l'+Date.now()+Math.random()}));
   updateStickyCart();
@@ -1722,9 +1767,10 @@ async function renderAdminScreen(){
     const orders = await r.json();
     if(orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
     box.innerHTML = `<table class="admin-tbl">
-      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Status</th></tr>
+      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Delivered By</th><th>Status</th></tr>
       ${orders.map(o=>`<tr>
         <td>#${o.id}</td><td>${o.outlet?.name||''}</td><td>${rupee(o.totals?.grandTotal||0)}</td>
+        <td>${o.deliveryPartnerName || '—'}</td>
         <td><select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
           ${STATUS_STEPS.map(s=>`<option value="${s.id}" ${o.status===s.id?'selected':''}>${s.label}</option>`).join('')}
         </select></td>
