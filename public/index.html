@@ -1541,6 +1541,11 @@ function simulateOrderProgress(orderId){
   }, 5000);
 }
 
+const SIMPLE_STEPS = [
+  {label:'Preparing your order', em:'🍕', match:['placed','confirmed','preparing','ready']},
+  {label:'Out for Delivery', em:'🛵', match:['outfordelivery']},
+  {label:'Delivered', em:'🎉', match:['delivered']}
+];
 function renderTrackingScreen(){
   const box = document.getElementById('trackContent');
   const order = state.orders[0];
@@ -1549,15 +1554,19 @@ function renderTrackingScreen(){
     box.innerHTML = `<div class="empty-state"><div class="em">📦</div><h3>No active orders</h3><p>Place an order to see live tracking here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>`;
     return;
   }
-  const currentIndex = STATUS_STEPS.findIndex(s=>s.id===order.status);
+  if(order.status==='cancelled'){
+    box.innerHTML = `<div class="empty-state"><div class="em">❌</div><h3>Order Cancelled</h3><p>Order #${order.id} was cancelled.</p></div>`;
+    return;
+  }
+  const currentIndex = SIMPLE_STEPS.findIndex(s=>s.match.includes(order.status));
   box.innerHTML = `
     <div class="track-steps">
-      ${STATUS_STEPS.map((s,idx)=>{
+      ${SIMPLE_STEPS.map((s,idx)=>{
         const done = idx < currentIndex, active = idx===currentIndex;
         return `<div class="tstep ${done?'done':''} ${active?'active':''}"><div class="connector"></div><div class="dot">${done?'✓':s.em}</div><div><h5>${s.label}</h5><p>${active?'In progress…':(done?'Completed':'Pending')}</p></div></div>`;
       }).join('')}
     </div>
-    ${order.status==='outfordelivery' ? `<div class="live-map"><div class="rider">🛵</div><span>Simulated live location — demo tracking only</span></div>` : ''}
+    ${order.status==='outfordelivery' ? `<div class="live-map"><div class="rider">🛵</div><span>Your order is on the way!</span></div>` : ''}
     <div class="order-card" style="margin-top:24px;">
       <div class="oid">Order #${order.id}</div>
       ${order.items.map(i=>`<div class="order-line"><span>${i.qty} × ${i.name}</span><span>${rupee(i.lineTotal)}</span></div>`).join('')}
