@@ -1,4 +1,3 @@
-require("dotenv").config();
 const express = require("express");
 const crypto = require("crypto");
 const path = require("path");
@@ -6,7 +5,6 @@ const mongoose = require("mongoose");
 const Razorpay = require("razorpay");
 const Order = require("./models/Order");
 const Product = require("./models/Product");
-const EmailOtp = require("./models/EmailOtp");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,10 +18,31 @@ if (!emailEnabled) {
   console.warn("Email notifications are OFF. Add BREVO_API_KEY and BREVO_SENDER_EMAIL to .env to enable them.");
 }
 
+// Labels for customization ids so the notification email is human-readable.
+// (Mirrors the crust/topping lists defined in public/index.html.)
+const CRUST_LABELS = { regular: "Regular", thin: "Thin Crust", cheeseburst: "Cheese Burst" };
+const TOPPING_LABELS = {
+  onion: "Onion", capsicum: "Capsicum", corn: "Corn",
+  jalapeno: "Jalapeño", olives: "Black Olives", paneer: "Paneer"
+};
+
+function formatOrderItem(it) {
+  const opts = [];
+  if (it.size) opts.push(it.size.charAt(0).toUpperCase() + it.size.slice(1));
+  if (it.crust) opts.push(CRUST_LABELS[it.crust] || it.crust);
+  if (it.extraCheese) opts.push("Extra Cheese");
+  if (Array.isArray(it.toppings) && it.toppings.length) {
+    opts.push(it.toppings.map(t => TOPPING_LABELS[t] || t).join(", "));
+  }
+  const optsText = opts.length ? ` [${opts.join(" | ")}]` : "";
+  const noteText = it.instructions ? ` — Note: ${it.instructions}` : "";
+  return `- ${it.name}${optsText} x${it.qty} (₹${it.lineTotal ?? ""})${noteText}`;
+}
+
 async function sendOrderEmail(order) {
   if (!emailEnabled) return;
   const itemsList = order.items
-    .map(it => `- ${it.name} x${it.qty} (₹${it.lineTotal ?? ""})`)
+    .map(formatOrderItem)
     .join("\n");
   const notifyTo = process.env.NOTIFY_EMAIL || process.env.BREVO_SENDER_EMAIL;
   try {
@@ -60,61 +79,6 @@ Grand Total: ₹${order.totals?.grandTotal ?? ""}`
   } catch (e) {
     console.error("Failed to send notification email:", e.message);
   }
-}
-
-// ---------------- Email OTP (customer verification) ----------------
-// Sends a 6-digit OTP to the CUSTOMER's email (different from sendOrderEmail,
-// which notifies the shop owner). Reuses the same Brevo HTTP API.
-async function sendOtpEmail(toEmail, otp) {
-  if (!emailEnabled) {
-    throw new Error("Email is not configured on the server (missing BREVO_API_KEY/BREVO_SENDER_EMAIL).");
-  }
-  const resp = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "api-key": process.env.BREVO_API_KEY,
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    },
-    body: JSON.stringify({
-      sender: { name: "Bunk And Bite", email: process.env.BREVO_SENDER_EMAIL },
-      to: [{ email: toEmail }],
-      subject: `Your Bunk And Bite verification code: ${otp}`,
-      textContent: `Your OTP to verify your email is: ${otp}\n\nThis code expires in 10 minutes. If you did not request this, ignore this email.`
-    })
-  });
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Brevo API responded ${resp.status}: ${errText}`);
-  }
-}
-
-// A short-lived signed token proves "this email was OTP-verified recently"
-// without needing the browser to keep hitting the database. Order creation
-// checks this token instead of re-checking the EmailOtp collection.
-function makeEmailVerificationToken(email) {
-  const expiresAt = Date.now() + 30 * 60 * 1000; // valid 30 minutes after verification
-  const payload = `${email.toLowerCase()}|${expiresAt}`;
-  const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
-  const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  return Buffer.from(`${payload}|${sig}`).toString("base64url");
-}
-function verifyEmailVerificationToken(token, email) {
-  try {
-    const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
-    const decoded = Buffer.from(String(token), "base64url").toString("utf8");
-    const [tokenEmail, expiresAtStr, sig] = decoded.split("|");
-    if (tokenEmail !== String(email || "").toLowerCase()) return false;
-    const expected = crypto.createHmac("sha256", secret).update(`${tokenEmail}|${expiresAtStr}`).digest("hex");
-    if (sig !== expected) return false;
-    if (Date.now() > Number(expiresAtStr)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-function validEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ""));
 }
 
 // ---------------- Database connection ----------------
@@ -177,17 +141,6 @@ app.post("/api/admin/login", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/delivery/login", (req, res) => {
-  if (!process.env.DELIVERY_PASSWORD) {
-    return res.status(503).json({ error: "Delivery panel is not configured. Add DELIVERY_PASSWORD to .env." });
-  }
-  const { password } = req.body;
-  if (password !== process.env.DELIVERY_PASSWORD) {
-    return res.status(401).json({ error: "Incorrect password." });
-  }
-  res.json({ ok: true });
-});
-
 // ---------------- Products (public read) ----------------
 app.get("/api/products", async (req, res) => {
   const products = await Product.find().sort({ category: 1, name: 1 });
@@ -232,64 +185,6 @@ app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------------- Email OTP endpoints ----------------
-app.post("/api/otp/send", async (req, res) => {
-  try {
-    const email = String(req.body.email || "").trim().toLowerCase();
-    if (!validEmail(email)) return res.status(400).json({ error: "Valid email is required." });
-    if (!emailEnabled) return res.status(503).json({ error: "Email service is not configured on the server." });
-
-    const otp = String(crypto.randomInt(100000, 1000000)); // 6-digit
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // Basic anti-spam: don't allow a fresh send if one was requested <30s ago.
-    const existing = await EmailOtp.findOne({ email });
-    if (existing && Date.now() - existing.createdAt.getTime() < 30 * 1000) {
-      return res.status(429).json({ error: "Please wait a few seconds before requesting another OTP." });
-    }
-
-    await EmailOtp.findOneAndUpdate(
-      { email },
-      { email, otp, verified: false, attempts: 0, createdAt: new Date(), expiresAt },
-      { upsert: true }
-    );
-
-    await sendOtpEmail(email, otp);
-    res.json({ ok: true, message: "OTP sent to your email." });
-  } catch (e) {
-    console.error("Failed to send OTP:", e.message);
-    res.status(500).json({ error: "Unable to send OTP right now. Please try again." });
-  }
-});
-
-app.post("/api/otp/verify", async (req, res) => {
-  try {
-    const email = String(req.body.email || "").trim().toLowerCase();
-    const otp = String(req.body.otp || "").trim();
-    if (!validEmail(email) || !otp) return res.status(400).json({ error: "Email and OTP are required." });
-
-    const record = await EmailOtp.findOne({ email });
-    if (!record) return res.status(400).json({ error: "No OTP found for this email. Please request a new one." });
-    if (record.expiresAt < new Date()) return res.status(400).json({ error: "OTP has expired. Please request a new one." });
-    if (record.attempts >= 5) return res.status(429).json({ error: "Too many incorrect attempts. Please request a new OTP." });
-
-    if (record.otp !== otp) {
-      record.attempts += 1;
-      await record.save();
-      return res.status(400).json({ error: "Incorrect OTP." });
-    }
-
-    record.verified = true;
-    await record.save();
-
-    const token = makeEmailVerificationToken(email);
-    res.json({ ok: true, verificationToken: token });
-  } catch (e) {
-    console.error("Failed to verify OTP:", e.message);
-    res.status(500).json({ error: "Unable to verify OTP right now. Please try again." });
-  }
-});
-
 // ---------------- Orders ----------------
 app.post("/api/orders", async (req,res) => {
   try {
@@ -304,7 +199,7 @@ app.post("/api/orders", async (req,res) => {
     const orderId = await nextOrderNumber();
     const order = new Order({
       id: orderId,
-      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone), email: `${String(customer.phone)}@guest.bunkandbite.local` },
+      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone) },
       items,
       totals,
       address,
@@ -401,67 +296,15 @@ app.get("/api/orders", async (req,res) => {
 });
 
 app.patch("/api/orders/:id/status", async (req,res) => {
-  try {
-    const allowed = ["placed","confirmed","preparing","ready","outfordelivery","delivered","cancelled"];
-    const status = req.body.status;
-    const deliveryPartnerName = req.body.deliveryPartnerName;
-    if (!allowed.includes(status)) return res.status(400).json({error:"Invalid status."});
-    const order = await Order.findOne({ id: req.params.id });
-    if (!order) return res.status(404).json({error:"Order not found."});
-    if (!order.customer.email) order.customer.email = `${order.customer.phone}@guest.bunkandbite.local`; // backfill legacy orders
-    order.status = status;
-    order.updatedAt = new Date();
-    if (deliveryPartnerName) {
-      order.set("deliveryPartnerName", deliveryPartnerName, { strict: false });
-    }
-    await order.save();
-    res.json(order);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({error:"Unable to update order status."});
-  }
-});
-
-// ---------------- Cancel order (customer / delivery / admin) ----------------
-app.patch("/api/orders/:id/cancel", async (req, res) => {
-  try {
-    const { cancelledBy, name, phone } = req.body; // cancelledBy: "customer" | "delivery" | "admin"
-    const validRoles = ["customer", "delivery", "admin"];
-    if (!validRoles.includes(cancelledBy)) return res.status(400).json({ error: "Invalid cancellation source." });
-
-    const order = await Order.findOne({ id: req.params.id });
-    if (!order) return res.status(404).json({ error: "Order not found." });
-    if (order.status === "delivered") return res.status(400).json({ error: "Delivered orders can't be cancelled." });
-    if (order.status === "cancelled") return res.status(400).json({ error: "This order is already cancelled." });
-
-    // A customer can only cancel their own order — verify by phone match.
-    if (cancelledBy === "customer") {
-      if (!phone || phone !== order.customer.phone) {
-        return res.status(403).json({ error: "Phone number does not match this order." });
-      }
-    }
-
-    if (!order.customer.email) order.customer.email = `${order.customer.phone}@guest.bunkandbite.local`; // backfill legacy orders
-    order.status = "cancelled";
-    order.updatedAt = new Date();
-    order.set("cancelledBy", cancelledBy, { strict: false });
-    order.set("cancelledByName", name || "", { strict: false });
-    order.set("cancelledAt", new Date(), { strict: false });
-    await order.save();
-    res.json(order);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Unable to cancel order." });
-  }
-});
-
-// ---------------- Delivery partner stats ----------------
-app.get("/api/delivery/stats", async (req, res) => {
-  const name = String(req.query.name || "").trim();
-  if (!name) return res.status(400).json({ error: "Delivery partner name is required." });
-  const delivered = await Order.countDocuments({ deliveryPartnerName: name, status: "delivered" });
-  const active = await Order.countDocuments({ deliveryPartnerName: name, status: { $nin: ["delivered","cancelled"] } });
-  res.json({ name, delivered, active });
+  const allowed = ["placed","confirmed","preparing","ready","outfordelivery","delivered","cancelled"];
+  const status = req.body.status;
+  if (!allowed.includes(status)) return res.status(400).json({error:"Invalid status."});
+  const order = await Order.findOne({ id: req.params.id });
+  if (!order) return res.status(404).json({error:"Order not found."});
+  order.status = status;
+  order.updatedAt = new Date();
+  await order.save();
+  res.json(order);
 });
 
 app.get("/*splat", (req,res) => {
