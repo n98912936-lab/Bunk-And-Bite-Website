@@ -602,6 +602,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
     <div class="screen-hero"><h1>Delivery Dashboard</h1><p id="deliverySubtitle">Track and update assigned deliveries.</p></div>
 
     <div id="deliveryLoginBox" class="co-block" style="max-width:380px;">
+      <div class="field"><label>Your Name</label><input id="deliveryNameInput" placeholder="e.g. Rahul Kumar"></div>
       <div class="field"><label>Delivery Password</label><input id="deliveryPasswordInput" type="password" placeholder="Enter delivery password" onkeydown="if(event.key==='Enter') deliveryLogin()"></div>
       <button class="btn btn-primary" onclick="deliveryLogin()">Login</button>
       <div id="deliveryLoginError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
@@ -653,7 +654,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
       </div>
     </div>
     <div class="foot-bottom">
-      <span>© 2026 Bunk And Bite. Demo site built for Niraj Pandit.</span>
+      <span>© 2026 Bunk And Bite. All rights reserved.</span>
       <span>Made with 🍕 in Pune</span>
     </div>
   </div>
@@ -1783,8 +1784,10 @@ function toggleCoupon(code){
    ============================================================================ */
 function showDeliveryScreen(){
   const savedKey = sessionStorage.getItem('bb_delivery_key');
-  if(savedKey){
+  const savedName = sessionStorage.getItem('bb_delivery_name');
+  if(savedKey && savedName){
     state.deliveryKey = savedKey;
+    state.deliveryName = savedName;
     document.getElementById('deliveryLoginBox').classList.add('hide');
     document.getElementById('deliveryContent').classList.remove('hide');
     renderDeliveryScreen();
@@ -1794,9 +1797,11 @@ function showDeliveryScreen(){
   }
 }
 async function deliveryLogin(){
+  const name = (document.getElementById('deliveryNameInput').value || '').trim();
   const pw = document.getElementById('deliveryPasswordInput').value;
   const errBox = document.getElementById('deliveryLoginError');
   errBox.textContent = '';
+  if(!name){ errBox.textContent = 'Please enter your name.'; return; }
   if(!pw){ errBox.textContent = 'Please enter the password.'; return; }
   try{
     const r = await fetch('/api/delivery/login', {
@@ -1806,7 +1811,9 @@ async function deliveryLogin(){
     const data = await r.json();
     if(!r.ok) throw new Error(data.error || 'Login failed');
     state.deliveryKey = pw;
+    state.deliveryName = name;
     sessionStorage.setItem('bb_delivery_key', pw);
+    sessionStorage.setItem('bb_delivery_name', name);
     document.getElementById('deliveryLoginBox').classList.add('hide');
     document.getElementById('deliveryContent').classList.remove('hide');
     renderDeliveryScreen();
@@ -1840,16 +1847,28 @@ function openNavigate(orderId){
 async function renderDeliveryScreen(){
   const box = document.getElementById('deliveryContent');
   box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
-  const r = await fetch('/api/orders');
+  const [r, statsR] = await Promise.all([
+    fetch('/api/orders'),
+    fetch('/api/delivery/stats?name=' + encodeURIComponent(state.deliveryName || ''))
+  ]);
   const orders = await r.json();
+  const stats = statsR.ok ? await statsR.json() : { delivered: 0 };
   const active = orders.filter(o=>o.status!=='delivered' && o.status!=='cancelled');
   deliveryOrdersCache = active;
+  const profileCard = `
+    <div class="co-block" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-weight:800;font-family:var(--font-display);font-size:16px;">👋 ${state.deliveryName || 'Delivery Partner'}</div>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Total Delivered: ${stats.delivered} · Active Now: ${active.length}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="deliveryLogout()">Logout</button>
+    </div>`;
   if(active.length===0){
-    box.innerHTML = `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
+    box.innerHTML = profileCard + `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
     return;
   }
   const outlet = DATA.outlets[0];
-  box.innerHTML = active.map(o=>`
+  box.innerHTML = profileCard + active.map(o=>`
     <div class="deliv-card">
       <div class="top">
         <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.paymentMethod==='cod'?('COD: '+rupee(o.totals.grandTotal)):'Prepaid (₹0 to collect)'}</div></div>
@@ -1865,6 +1884,12 @@ async function renderDeliveryScreen(){
       </div> 
     </div>`).join(''); 
 } 
+function deliveryLogout(){
+  sessionStorage.removeItem('bb_delivery_key');
+  sessionStorage.removeItem('bb_delivery_name');
+  state.deliveryKey = null; state.deliveryName = null;
+  showDeliveryScreen();
+}
 async function advanceDelivery(orderId, currentStatus){ 
   const seq = STATUS_STEPS.map(s=>s.id); 
   const i = seq.indexOf(currentStatus); 
@@ -1872,7 +1897,7 @@ async function advanceDelivery(orderId, currentStatus){
   const nextStatus = seq[i+1];
   try{
     const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {
-      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus })
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus, deliveryPartnerName: state.deliveryName || '' })
     });
     if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
     toast("Marked as: " + (STATUS_STEPS.find(s=>s.id===nextStatus)?.label || nextStatus));

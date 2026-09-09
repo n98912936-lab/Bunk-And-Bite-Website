@@ -403,13 +403,26 @@ app.get("/api/orders", async (req,res) => {
 app.patch("/api/orders/:id/status", async (req,res) => {
   const allowed = ["placed","confirmed","preparing","ready","outfordelivery","delivered","cancelled"];
   const status = req.body.status;
+  const deliveryPartnerName = req.body.deliveryPartnerName;
   if (!allowed.includes(status)) return res.status(400).json({error:"Invalid status."});
   const order = await Order.findOne({ id: req.params.id });
   if (!order) return res.status(404).json({error:"Order not found."});
   order.status = status;
   order.updatedAt = new Date();
+  if (deliveryPartnerName) {
+    order.set("deliveryPartnerName", deliveryPartnerName, { strict: false });
+  }
   await order.save();
   res.json(order);
+});
+
+// ---------------- Delivery partner stats ----------------
+app.get("/api/delivery/stats", async (req, res) => {
+  const name = String(req.query.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Delivery partner name is required." });
+  const delivered = await Order.countDocuments({ deliveryPartnerName: name, status: "delivered" });
+  const active = await Order.countDocuments({ deliveryPartnerName: name, status: { $nin: ["delivered","cancelled"] } });
+  res.json({ name, delivered, active });
 });
 
 app.get("/*splat", (req,res) => {
