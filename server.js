@@ -304,7 +304,7 @@ app.post("/api/orders", async (req,res) => {
     const orderId = await nextOrderNumber();
     const order = new Order({
       id: orderId,
-      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone), email: String(customer.email).toLowerCase() },
+      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone) },
       items,
       totals,
       address,
