@@ -1877,12 +1877,8 @@ async function deliveryLogin(){
     errBox.textContent = e.message;
   }
 }
-function navigateLink(order){
-  if(order.address?.lat && order.address?.lng){
-    return `https://www.google.com/maps/dir/?api=1&destination=${order.address.lat},${order.address.lng}`;
-  }
-  const q = encodeURIComponent(order.address?.text || '');
-  return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
+function cleanAddressForMaps(text){
+  return (text || '').replace(/[\/\\]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 let deliveryOrdersCache = [];
 function openNavigate(orderId){
@@ -1890,7 +1886,7 @@ function openNavigate(orderId){
   if(!o) return;
   const dest = (o.address?.lat && o.address?.lng)
     ? `${o.address.lat},${o.address.lng}`
-    : encodeURIComponent(o.address?.text || '');
+    : encodeURIComponent(cleanAddressForMaps(o.address?.text) + (o.address?.pincode ? (', ' + o.address.pincode) : '') + ', India');
   if(!navigator.geolocation){
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
     return;
@@ -1942,8 +1938,9 @@ async function advanceDelivery(orderId, currentStatus){
       method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus })
     });
     if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    toast("Marked as: " + (STATUS_STEPS.find(s=>s.id===nextStatus)?.label || nextStatus));
     renderDeliveryScreen(); 
-  }catch(e){ toast(e.message); }
+  }catch(e){ toast("Error: " + e.message); }
 } 
  
 /* ============================================================================ 
