@@ -23,6 +23,7 @@
   --ink-soft:#6b6055;
   --line:#EEE3D6;
   --green:#2E8B57;
+  --blue:#2563EB;
   --radius-lg:26px;
   --radius-md:16px;
   --radius-sm:10px;
@@ -290,9 +291,9 @@ textarea.instr{width:100%;border:1px solid var(--line);border-radius:12px;paddin
 .tstep:last-child{padding-bottom:0;}
 .tstep .connector{position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line);}
 .tstep:last-child .connector{display:none;}
-.tstep.done .connector{background:var(--green);}
+.tstep.done .connector{background:var(--blue);}
 .tstep .dot{width:40px;height:40px;border-radius:50%;background:#fff;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;z-index:1;}
-.tstep.done .dot{background:var(--green);border-color:var(--green);color:#fff;}
+.tstep.done .dot{background:var(--blue);border-color:var(--blue);color:#fff;}
 .tstep.active .dot{background:var(--yellow);border-color:var(--yellow);animation:pulse2 1.5s infinite;}
 @keyframes pulse2{0%{box-shadow:0 0 0 0 rgba(245,163,0,.5);}70%{box-shadow:0 0 0 10px rgba(245,163,0,0);}100%{box-shadow:0 0 0 0 rgba(245,163,0,0);}}
 .tstep h5{font-size:14.5px;margin-bottom:3px;}
