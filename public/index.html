@@ -503,21 +503,6 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           <h4><span class="num">1</span> Customer & Delivery Address</h4>
           <div class="field"><label>Full Name</label><input id="customerName" placeholder="Your name" autocomplete="name"></div>
           <div class="field"><label>Mobile Number</label><input id="customerPhone" placeholder="10-digit mobile number" inputmode="tel" autocomplete="tel"></div>
-          <div class="field">
-            <label>Email</label>
-            <div style="display:flex;gap:8px;">
-              <input id="customerEmail" placeholder="you@example.com" type="email" autocomplete="email" style="flex:1;" oninput="onEmailChanged()">
-              <button type="button" class="btn btn-ghost btn-sm" id="sendOtpBtn" onclick="sendOtp()">Send OTP</button>
-            </div>
-          </div>
-          <div class="field" id="otpFieldWrap" style="display:none;">
-            <label>Enter OTP</label>
-            <div style="display:flex;gap:8px;">
-              <input id="customerOtp" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="flex:1;">
-              <button type="button" class="btn btn-ghost btn-sm" id="verifyOtpBtn" onclick="verifyOtp()">Verify</button>
-            </div>
-          </div>
-          <div id="emailOtpStatus" style="font-size:13px;color:var(--ink-soft);margin-top:2px;"></div>
           <div class="addr-opts">
             <button class="btn btn-ghost btn-sm" onclick="useCurrentLocation()">📍 Use Current Location</button>
             <button class="btn btn-ghost btn-sm" onclick="toggleManualAddr()">✏️ Enter Manually</button>
@@ -1416,57 +1401,6 @@ function renderCheckoutScreen(){
 }
 function setPaymentMethod(id){ state.paymentMethod = id; renderCheckoutScreen(); }
 
-function onEmailChanged(){
-  state.emailVerificationToken = null;
-  state.verifiedEmail = null;
-  document.getElementById('emailOtpStatus').textContent = '';
-  document.getElementById('otpFieldWrap').style.display = 'none';
-}
-
-async function sendOtp(){
-  const email = (document.getElementById('customerEmail')?.value || '').trim();
-  if(!email || !email.includes('@')){ toast("Please enter a valid email"); return; }
-  const btn = document.getElementById('sendOtpBtn');
-  btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Sending…";
-  try{
-    const r = await fetch('/api/otp/send', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email })
-    });
-    const data = await r.json();
-    if(!r.ok) throw new Error(data.error || 'Could not send OTP');
-    document.getElementById('otpFieldWrap').style.display = 'block';
-    document.getElementById('emailOtpStatus').textContent = "OTP sent! Check your inbox (valid 10 minutes).";
-  }catch(e){
-    toast(e.message);
-  }finally{
-    btn.disabled = false; btn.textContent = originalText;
-  }
-}
-
-async function verifyOtp(){
-  const email = (document.getElementById('customerEmail')?.value || '').trim();
-  const otp = (document.getElementById('customerOtp')?.value || '').trim();
-  if(!otp){ toast("Please enter the OTP"); return; }
-  const btn = document.getElementById('verifyOtpBtn');
-  btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Verifying…";
-  try{
-    const r = await fetch('/api/otp/verify', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email, otp })
-    });
-    const data = await r.json();
-    if(!r.ok) throw new Error(data.error || 'Incorrect OTP');
-    state.emailVerificationToken = data.verificationToken;
-    state.verifiedEmail = email;
-    document.getElementById('emailOtpStatus').textContent = "✅ Email verified.";
-  }catch(e){
-    toast(e.message);
-  }finally{
-    btn.disabled = false; btn.textContent = originalText;
-  }
-}
-
 async function placeOrder(){
   const outlet = state.selectedOutlet;
   const name = (document.getElementById('customerName')?.value || '').trim();
@@ -1475,12 +1409,6 @@ async function placeOrder(){
   if(!outlet || !state.address.text){ toast("Please add your delivery address first"); return; }
   if(!name){ toast("Please enter your name"); return; }
   if(phone.length !== 10){ toast("Please enter a valid 10-digit mobile number"); return; }
-  const email = (document.getElementById('customerEmail')?.value || '').trim();
-  if(!email || !email.includes('@')){ toast("Please enter your email"); return; }
-  if(!state.emailVerificationToken || state.verifiedEmail !== email){
-    toast("Please verify your email with the OTP before placing the order");
-    return;
-  }
   if(!isOutletOpenNow(outlet)){ toast("Sorry, the outlet is currently closed."); return; }
 
   const t = cartTotals();
@@ -1489,8 +1417,7 @@ async function placeOrder(){
   btn.textContent = "Creating order…";
 
   const payload = {
-    customer: { name, phone, email },
-    emailVerificationToken: state.emailVerificationToken,
+    customer: { name, phone },
     items: state.cart,
     totals: t,
     address: state.address,

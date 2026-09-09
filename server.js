@@ -293,15 +293,11 @@ app.post("/api/otp/verify", async (req, res) => {
 // ---------------- Orders ----------------
 app.post("/api/orders", async (req,res) => {
   try {
-    const { customer, items, totals, address, outlet, paymentMethod, emailVerificationToken } = req.body;
+    const { customer, items, totals, address, outlet, paymentMethod } = req.body;
     if (!customer?.name || !validPhone(customer.phone)) return res.status(400).json({error:"Valid customer name and 10-digit mobile number are required."});
     if (!Array.isArray(items) || !items.length) return res.status(400).json({error:"Cart is empty."});
     if (!address?.text) return res.status(400).json({error:"Delivery address is required."});
     if (!outlet?.id) return res.status(400).json({error:"Outlet is required."});
-    if (!validEmail(customer.email)) return res.status(400).json({error:"Valid email is required."});
-    if (!verifyEmailVerificationToken(emailVerificationToken, customer.email)) {
-      return res.status(400).json({error:"Email is not verified. Please verify the OTP sent to your email before placing the order."});
-    }
 
     // IMPORTANT: In a production deployment, calculate prices again from the database here.
     // Never trust totals sent by the browser.
