@@ -362,7 +362,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
       <a data-go="orders">My Orders</a>
     </nav>
     <div class="head-actions">
-      <div class="loc-pill" id="locPill" title="Delivery location"><span class="dot"></span><span class="addr" id="locPillText">Detecting location…</span></div>
+      <div class="loc-pill" id="locPill" title="Delivery location" onclick="openHeaderLocationModal()" style="cursor:pointer;"><span class="dot"></span><span class="addr" id="locPillText">Detecting location…</span></div>
       <button class="icon-btn" title="Search" onclick="openSearch()">🔍</button>
       <button class="icon-btn" title="Favorites" onclick="go('favorites')">🤍</button>
       <button class="icon-btn" title="Cart" onclick="go('cart')">🛒<span class="cart-count hide" id="cartCount">0</span></button>
@@ -915,6 +915,49 @@ function resolveOutletForLocation(lat, lon, pillText){
     if(pillText) pillText.textContent = "No outlet nearby";
   }
 }
+function openHeaderLocationModal(){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+  <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box" style="max-width:420px;">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-body">
+        <h3>Set delivery location</h3>
+        <button class="btn btn-primary" style="width:100%;margin:14px 0;" onclick="useHeaderCurrentLocation()">📍 Use Current Location</button>
+        <p style="text-align:center;color:var(--ink-soft);font-size:13px;margin:10px 0;">— or enter manually —</p>
+        <div class="field"><label>Full Address</label><textarea id="headerAddrText" rows="2" placeholder="House no, street, area..."></textarea></div>
+        <div class="field"><label>Pincode</label><input id="headerAddrPin" placeholder="e.g. 411046"></div>
+        <div id="headerAddrError" style="color:var(--red);font-size:13px;margin-top:4px;"></div>
+        <button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="saveHeaderManualAddress()">Save & Continue</button>
+      </div>
+    </div>
+  </div>`;
+}
+function useHeaderCurrentLocation(){
+  if(!navigator.geolocation){ toast("Location services unavailable in this browser."); return; }
+  toast("Detecting your location…");
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const {latitude, longitude} = pos.coords;
+    resolveOutletForLocation(latitude, longitude, document.getElementById('locPillText'));
+    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'', lat: latitude, lng: longitude };
+    closeModal();
+    toast("Location set!");
+  }, err=>{
+    toast("Location permission denied. Please enter your address manually.");
+  });
+}
+function saveHeaderManualAddress(){
+  const text = (document.getElementById('headerAddrText').value || '').trim();
+  const pin = (document.getElementById('headerAddrPin').value || '').trim();
+  const errBox = document.getElementById('headerAddrError');
+  if(!text){ errBox.textContent = "Please enter your address."; return; }
+  if(!/^\d{6}$/.test(pin)){ errBox.textContent = "Please enter a valid 6-digit pincode."; return; }
+  state.address = { mode:'manual', text, pincode: pin };
+  const pillText = document.getElementById('locPillText');
+  if(pillText) pillText.textContent = "Delivering to: " + text;
+  closeModal();
+  toast("Delivery address saved!");
+}
 function useCurrentLocation(){
   if(!navigator.geolocation){ toast("Location services unavailable in this browser."); return; }
   document.getElementById('addrStatus').textContent = "Detecting your location…";
@@ -1424,9 +1467,11 @@ async function placeOrder(){
   btn.disabled = true;
   btn.textContent = "Creating order…";
 
+  const itemsWithSummary = state.cart.map(item => ({ ...item, customizationText: customizationSummary(item) }));
+
   const payload = {
     customer: { name, phone },
-    items: state.cart,
+    items: itemsWithSummary,
     totals: t,
     address: state.address,
     outlet: { id: outlet.id, name: outlet.name },

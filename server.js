@@ -23,7 +23,7 @@ if (!emailEnabled) {
 async function sendOrderEmail(order) {
   if (!emailEnabled) return;
   const itemsList = order.items
-    .map(it => `- ${it.name} x${it.qty} (₹${it.lineTotal ?? ""})`)
+    .map(it => `- ${it.name}${it.customizationText ? ' (' + it.customizationText + ')' : ''} x${it.qty} (₹${it.lineTotal ?? ""})`)
     .join("\n");
   const notifyTo = process.env.NOTIFY_EMAIL || process.env.BREVO_SENDER_EMAIL;
   try {
