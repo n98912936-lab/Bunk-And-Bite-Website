@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const path = require("path");
 const mongoose = require("mongoose");
 const Razorpay = require("razorpay");
+const axios = require("axios");
 const Order = require("./models/Order");
 const Product = require("./models/Product");
 const EmailOtp = require("./models/EmailOtp");
@@ -92,8 +93,7 @@ async function sendOtpEmail(toEmail, otp) {
 // A short-lived signed token proves "this email was OTP-verified recently"
 // without needing the browser to keep hitting the database. Order creation
 // checks this token instead of re-checking the EmailOtp collection.
-function makeEmailVerificationToken(email) {
-  const expiresAt = Date.now() + 30 * 60 * 1000; // valid 30 minutes after verification
+function makeEmailVerificationToken(email) {  const expiresAt = Date.now() + 30 * 60 * 1000; // valid 30 minutes after verification
   const payload = `${email.toLowerCase()}|${expiresAt}`;
   const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
@@ -113,6 +113,63 @@ function verifyEmailVerificationToken(token, email) {
     return false;
   }
 }
+// ---------------- WhatsApp OTP (phone verification) ----------------
+// Verifies the customer actually controls the mobile number they typed
+// at checkout, so orders can't be placed against a stranger's number.
+const whatsappEnabled = Boolean(process.env.WHATSAPP_TOKEN && process.env.PHONE_NUMBER_ID);
+if (!whatsappEnabled) {
+  console.warn("WhatsApp OTP is OFF. Add WHATSAPP_TOKEN and PHONE_NUMBER_ID to .env to enable it.");
+}
+const phoneOtpStore = new Map(); // phone -> { otp, verified, attempts, createdAt, expiresAt }
+
+async function sendWhatsAppOtp(phone, otp) {
+  if (!whatsappEnabled) {
+    throw new Error("WhatsApp is not configured on the server (missing WHATSAPP_TOKEN/PHONE_NUMBER_ID).");
+  }
+  const version = process.env.WHATSAPP_API_VERSION || "v21.0";
+  const templateName = process.env.WHATSAPP_OTP_TEMPLATE || "hello_world"; // switch once your OTP template is approved
+  const to = "91" + phone;
+
+  const body = templateName === "hello_world"
+    ? { messaging_product: "whatsapp", to, type: "template", template: { name: "hello_world", language: { code: "en_US" } } }
+    : {
+        messaging_product: "whatsapp", to, type: "template",
+        template: {
+          name: templateName,
+          language: { code: "en" },
+          components: [{ type: "body", parameters: [{ type: "text", text: otp }] }]
+        }
+      };
+
+  const resp = await axios({
+    method: "POST",
+    url: `https://graph.facebook.com/${version}/${process.env.PHONE_NUMBER_ID}/messages`,
+    headers: { "Authorization": `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+    data: body
+  }).catch(err => { throw new Error(err.response ? JSON.stringify(err.response.data) : err.message); });
+  return resp.data;
+}
+
+function makePhoneVerificationToken(phone) {
+  const expiresAt = Date.now() + 30 * 60 * 1000;
+  const payload = `${phone}|${expiresAt}`;
+  const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
+  const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  return Buffer.from(`${payload}|${sig}`).toString("base64url");
+}
+function verifyPhoneVerificationToken(token, phone) {
+  try {
+    const decoded = Buffer.from(String(token), "base64url").toString("utf8");
+    const [ph, expiresAtStr, sig] = decoded.split("|");
+    if (ph !== phone) return false;
+    const secret = process.env.ADMIN_PASSWORD || process.env.RAZORPAY_KEY_SECRET || "fallback-secret-change-me";
+    const expected = crypto.createHmac("sha256", secret).update(`${ph}|${expiresAtStr}`).digest("hex");
+    if (sig !== expected) return false;
+    if (Date.now() > Number(expiresAtStr)) return false;
+    return true;
+  } catch { return false; }
+}
+
 function validEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ""));
 }
@@ -290,11 +347,64 @@ app.post("/api/otp/verify", async (req, res) => {
   }
 });
 
+// ---------------- WhatsApp OTP endpoints (phone verification) ----------------
+function validPhoneSimple(phone) {
+  return /^[6-9]\d{9}$/.test(String(phone || ""));
+}
+app.post("/api/whatsapp-otp/send", async (req, res) => {
+  try {
+    const phone = String(req.body.phone || "").trim();
+    if (!validPhoneSimple(phone)) return res.status(400).json({ error: "Valid 10-digit mobile number is required." });
+    if (!whatsappEnabled) return res.status(503).json({ error: "WhatsApp verification is not configured on the server." });
+
+    const existing = phoneOtpStore.get(phone);
+    if (existing && Date.now() - existing.createdAt < 30 * 1000) {
+      return res.status(429).json({ error: "Please wait a few seconds before requesting another OTP." });
+    }
+
+    const otp = String(crypto.randomInt(100000, 1000000));
+    phoneOtpStore.set(phone, { otp, verified: false, attempts: 0, createdAt: Date.now(), expiresAt: Date.now() + 10 * 60 * 1000 });
+
+    await sendWhatsAppOtp(phone, otp);
+    res.json({ ok: true, message: "OTP sent on WhatsApp." });
+  } catch (e) {
+    console.error("Failed to send WhatsApp OTP:", e.message);
+    res.status(500).json({ error: "Unable to send OTP right now. Please try again." });
+  }
+});
+app.post("/api/whatsapp-otp/verify", async (req, res) => {
+  try {
+    const phone = String(req.body.phone || "").trim();
+    const otp = String(req.body.otp || "").trim();
+    if (!validPhoneSimple(phone) || !otp) return res.status(400).json({ error: "Phone and OTP are required." });
+
+    const record = phoneOtpStore.get(phone);
+    if (!record) return res.status(400).json({ error: "No OTP found for this number. Please request a new one." });
+    if (Date.now() > record.expiresAt) return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    if (record.attempts >= 5) return res.status(429).json({ error: "Too many incorrect attempts. Please request a new OTP." });
+
+    if (record.otp !== otp) {
+      record.attempts += 1;
+      return res.status(400).json({ error: "Incorrect OTP." });
+    }
+
+    record.verified = true;
+    const token = makePhoneVerificationToken(phone);
+    res.json({ ok: true, verificationToken: token });
+  } catch (e) {
+    console.error("Failed to verify WhatsApp OTP:", e.message);
+    res.status(500).json({ error: "Unable to verify OTP right now. Please try again." });
+  }
+});
+
 // ---------------- Orders ----------------
 app.post("/api/orders", async (req,res) => {
   try {
-    const { customer, items, totals, address, outlet, paymentMethod } = req.body;
+    const { customer, items, totals, address, outlet, paymentMethod, phoneVerificationToken } = req.body;
     if (!customer?.name || !validPhone(customer.phone)) return res.status(400).json({error:"Valid customer name and 10-digit mobile number are required."});
+    if (!verifyPhoneVerificationToken(phoneVerificationToken, String(customer.phone))) {
+      return res.status(400).json({error:"Please verify your mobile number with the OTP before placing the order."});
+    }
     if (!Array.isArray(items) || !items.length) return res.status(400).json({error:"Cart is empty."});
     if (!address?.text) return res.status(400).json({error:"Delivery address is required."});
     if (!outlet?.id) return res.status(400).json({error:"Outlet is required."});
