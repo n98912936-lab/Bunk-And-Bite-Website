@@ -23,6 +23,7 @@
   --ink-soft:#6b6055;
   --line:#EEE3D6;
   --green:#2E8B57;
+  --blue:#2563EB;
   --radius-lg:26px;
   --radius-md:16px;
   --radius-sm:10px;
@@ -290,9 +291,9 @@ textarea.instr{width:100%;border:1px solid var(--line);border-radius:12px;paddin
 .tstep:last-child{padding-bottom:0;}
 .tstep .connector{position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line);}
 .tstep:last-child .connector{display:none;}
-.tstep.done .connector{background:var(--green);}
+.tstep.done .connector{background:var(--blue);}
 .tstep .dot{width:40px;height:40px;border-radius:50%;background:#fff;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;z-index:1;}
-.tstep.done .dot{background:var(--green);border-color:var(--green);color:#fff;}
+.tstep.done .dot{background:var(--blue);border-color:var(--blue);color:#fff;}
 .tstep.active .dot{background:var(--yellow);border-color:var(--yellow);animation:pulse2 1.5s infinite;}
 @keyframes pulse2{0%{box-shadow:0 0 0 0 rgba(245,163,0,.5);}70%{box-shadow:0 0 0 10px rgba(245,163,0,0);}100%{box-shadow:0 0 0 0 rgba(245,163,0,0);}}
 .tstep h5{font-size:14.5px;margin-bottom:3px;}
@@ -308,6 +309,7 @@ textarea.instr{width:100%;border:1px solid var(--line);border-radius:12px;paddin
 .st.placed{background:#FFF1E8;color:#b45309;}
 .st.transit{background:#FFF7D6;color:#8a6d00;}
 .st.delivered{background:#eafaf0;color:var(--green);}
+.st.cancelled{background:#FFEAEA;color:var(--red);}
 
 /* ---------- admin / delivery ---------- */
 .admin-wrap{display:grid;grid-template-columns:220px 1fr;gap:26px;min-height:70vh;}
@@ -510,7 +512,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           <div id="manualAddrFields" class="hide">
             <div class="field"><label>Full Address</label><textarea id="addrText" rows="2" placeholder="House no, street, area..."></textarea></div>
             <div class="field"><label>Pincode</label><input id="addrPin" placeholder="e.g. 411046"></div>
-            <button class="btn btn-primary btn-sm" onclick="saveManualAddress()">OK</button>
+            <button class="btn btn-primary btn-sm" onclick="saveManualAddress()">Save Address</button>
           </div>
           <div id="addrStatus" style="font-size:13px;color:var(--ink-soft);margin-top:6px;"></div>
         </div>
@@ -558,7 +560,12 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== MY ORDERS =================== -->
 <main id="screen-orders" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>My Orders</h1><p>Demo order history for this session.</p></div>
+    <div class="screen-hero"><h1>My Orders</h1><p>Your real order history, looked up by mobile number.</p></div>
+    <div id="ordersLookup" class="co-block hide" style="max-width:380px;">
+      <div class="field"><label>Mobile Number</label><input id="ordersPhoneInput" placeholder="10-digit mobile number" inputmode="tel" maxlength="10" onkeydown="if(event.key==='Enter') loadMyOrders()"></div>
+      <button class="btn btn-primary" onclick="loadMyOrders()">View My Orders</button>
+      <div id="ordersLookupError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
     <div id="ordersList"></div>
   </div>
 </main>
@@ -574,8 +581,15 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== ADMIN =================== -->
 <main id="screen-admin" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>Admin Dashboard</h1><p>Demo Admin — changes are stored only for this session.</p></div>
-    <div class="admin-wrap">
+    <div class="screen-hero"><h1>Admin Dashboard</h1><p id="adminSubtitle">Manage your live menu, orders and outlets.</p></div>
+
+    <div id="adminLoginBox" class="co-block" style="max-width:380px;">
+      <div class="field"><label>Admin Password</label><input id="adminPasswordInput" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter') adminLogin()"></div>
+      <button class="btn btn-primary" onclick="adminLogin()">Login</button>
+      <div id="adminLoginError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
+
+    <div id="adminPanelBox" class="admin-wrap hide">
       <div class="admin-side">
         <button class="active" data-tab="overview" onclick="setAdminTab('overview')">📊 Overview</button>
         <button data-tab="products" onclick="setAdminTab('products')">🍕 Products</button>
@@ -591,8 +605,16 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
 <!-- =================== DELIVERY ===================== -->
 <main id="screen-delivery" class="hide">
   <div class="container">
-    <div class="screen-hero"><h1>Delivery Dashboard</h1><p>Demo delivery partner — Rahul K.</p></div>
-    <div id="deliveryContent"></div>
+    <div class="screen-hero"><h1>Delivery Dashboard</h1><p id="deliverySubtitle">Track and update assigned deliveries.</p></div>
+
+    <div id="deliveryLoginBox" class="co-block" style="max-width:380px;">
+      <div class="field"><label>Your Name</label><input id="deliveryNameInput" placeholder="e.g. Rahul Kumar"></div>
+      <div class="field"><label>Delivery Password</label><input id="deliveryPasswordInput" type="password" placeholder="Enter delivery password" onkeydown="if(event.key==='Enter') deliveryLogin()"></div>
+      <button class="btn btn-primary" onclick="deliveryLogin()">Login</button>
+      <div id="deliveryLoginError" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
+
+    <div id="deliveryContent" class="hide"></div>
   </div>
 </main>
 
@@ -638,7 +660,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
       </div>
     </div>
     <div class="foot-bottom">
-      <span>© 2026 Bunk And Bite. Demo site built for Niraj Pandit.</span>
+      <span>© 2026 Bunk And Bite. All rights reserved.</span>
       <span>Made with 🍕 in Pune</span>
     </div>
   </div>
@@ -679,8 +701,8 @@ const DATA = {
       longitude: 73.8677,
       phone: "9284434916",
       whatsapp: "9284434916",
-      openingTime: "15:00",
-      closingTime: "22:00",
+      openingTime: "00:00",
+      closingTime: "23:59",
       deliveryRadiusKm: 2,
       deliveryFee: 30,          // EDIT: flat delivery fee for this outlet
       minOrder: 99,             // EDIT: minimum order value
@@ -747,34 +769,34 @@ const DATA = {
     { id:"pz-011", name:"Veg Paradise Pizza", category:"pizza", desc:"A loaded garden of veggies on cheesy base.", veg:true, available:true, featured:false, rating:4.5, emoji:"🍕", img:"images/veg-paradise-pizza.jpg", customizable:true, prices:{ small:159, medium:179, large:199 } },
     { id:"pz-012", name:"Farmhouse Pizza", category:"pizza", desc:"Onion, capsicum, corn, tomato — farm-fresh flavour.", veg:true, available:true, featured:true, rating:4.7, emoji:"🍕", img:"images/farmhouse-pizza.jpg", customizable:true, prices:{ small:199, medium:219, large:249 } },
 
-    { id:"bg-001", name:"Classic Veg Burger", category:"burgers", desc:"Crisp veg patty with fresh lettuce and mayo.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍔", customizable:false, price:99 },
-    { id:"bg-002", name:"Cheese Veg Burger", category:"burgers", desc:"Our classic burger with a melted cheese slice.", veg:true, available:true, featured:true, rating:4.3, emoji:"🍔", customizable:false, price:129 },
-    { id:"bg-003", name:"Paneer Burger", category:"burgers", desc:"Grilled paneer patty, loaded with flavour.", veg:true, available:true, featured:false, rating:4.4, emoji:"🍔", customizable:false, price:149 },
+    { id:"bg-001", name:"Classic Veg Aloo Tikki Burger", category:"burgers", desc:"Crisp aloo tikki patty with fresh lettuce and mayo.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍔", img:"images/classic-veg-aloo-tikki-burger.jpg", customizable:false, price:99 },
+    { id:"bg-002", name:"Cheese Veg Aloo Tikki Burger", category:"burgers", desc:"Our classic aloo tikki burger with a melted cheese slice.", veg:true, available:true, featured:true, rating:4.3, emoji:"🍔", img:"images/cheese-veg-aloo-tikki-burger.jpg", customizable:false, price:129 },
+    { id:"bg-003", name:"Paneer Aloo Tikki Burger", category:"burgers", desc:"Grilled paneer and aloo tikki patty, loaded with flavour.", veg:true, available:true, featured:false, rating:4.4, emoji:"🍔", img:"images/paneer-aloo-tikki-burger.jpg", customizable:false, price:149 },
 
-    { id:"gb-001", name:"Classic Garlic Bread", category:"garlic-bread", desc:"Toasted bread brushed with garlic butter.", veg:true, available:true, featured:false, rating:4.2, emoji:"🥖", customizable:false, price:99 },
-    { id:"gb-002", name:"Cheese Garlic Bread", category:"garlic-bread", desc:"Garlic bread topped with molten cheese.", veg:true, available:true, featured:true, rating:4.5, emoji:"🥖", customizable:false, price:129 },
-    { id:"gb-003", name:"Spicy Cheese Garlic Bread", category:"garlic-bread", desc:"Cheese garlic bread with a spicy twist.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥖", customizable:false, price:149 },
+    { id:"gb-001", name:"Classic Garlic Bread", category:"garlic-bread", desc:"Toasted bread brushed with garlic butter.", veg:true, available:true, featured:false, rating:4.2, emoji:"🥖", img:"images/classic-garlic-bread.jpg", customizable:false, price:99 },
+    { id:"gb-002", name:"Cheese Garlic Bread", category:"garlic-bread", desc:"Garlic bread topped with molten cheese.", veg:true, available:true, featured:true, rating:4.5, emoji:"🥖", img:"images/cheese-garlic-bread.jpg", customizable:false, price:129 },
+    { id:"gb-003", name:"Spicy Cheese Garlic Bread", category:"garlic-bread", desc:"Cheese garlic bread with a spicy twist.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥖", img:"images/spicy-cheese-garlic-bread.jpg", customizable:false, price:149 },
 
-    { id:"fr-001", name:"Classic Fries", category:"fries", desc:"Golden, crispy and perfectly salted.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍟", customizable:false, price:79 },
-    { id:"fr-002", name:"Peri Peri Fries", category:"fries", desc:"Tossed in tangy peri peri seasoning.", veg:true, available:true, featured:true, rating:4.4, emoji:"🍟", customizable:false, price:99 },
-    { id:"fr-003", name:"Cheese Fries", category:"fries", desc:"Loaded with a generous layer of cheese.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍟", customizable:false, price:129 },
+    { id:"fr-001", name:"Classic Fries", category:"fries", desc:"Golden, crispy and perfectly salted.", veg:true, available:true, featured:false, rating:4.1, emoji:"🍟", img:"images/classic-fries.jpg", customizable:false, price:79 },
+    { id:"fr-002", name:"Peri Peri Fries", category:"fries", desc:"Tossed in tangy peri peri seasoning.", veg:true, available:true, featured:true, rating:4.4, emoji:"🍟", img:"images/peri-peri-fries.jpg", customizable:false, price:99 },
+    { id:"fr-003", name:"Cheese Fries", category:"fries", desc:"Loaded with a generous layer of cheese.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍟", img:"images/cheese-fries.jpg", customizable:false, price:129 },
 
     { id:"sd-001", name:"Veg Nuggets", category:"sides", desc:"Crispy bite-sized veggie nuggets.", veg:true, available:true, featured:false, rating:4.0, emoji:"🍗", customizable:false, price:99 },
     { id:"sd-002", name:"Cheesy Bites", category:"sides", desc:"Bite-sized, cheese-stuffed and golden fried.", veg:true, available:true, featured:false, rating:4.2, emoji:"🍗", customizable:false, price:129 },
     { id:"sd-003", name:"Paneer Poppers", category:"sides", desc:"Crunchy on the outside, soft paneer inside.", veg:true, available:true, featured:false, rating:4.3, emoji:"🍗", customizable:false, price:139 },
 
-    { id:"dr-001", name:"Coke", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.5, emoji:"🥤", customizable:false, price:50 },
-    { id:"dr-002", name:"Pepsi", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.4, emoji:"🥤", customizable:false, price:50 },
-    { id:"dr-003", name:"Sprite", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥤", customizable:false, price:50 },
-    { id:"dr-004", name:"Water Bottle", category:"drinks", desc:"500ml packaged drinking water.", veg:true, available:true, featured:false, rating:4.5, emoji:"💧", customizable:false, price:20 },
+    { id:"dr-001", name:"Coke", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.5, emoji:"🥤", img:"images/coke.jpg", customizable:false, price:50 },
+    { id:"dr-002", name:"Pepsi", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.4, emoji:"🥤", img:"images/pepsi.jpg", customizable:false, price:50 },
+    { id:"dr-003", name:"Sprite", category:"drinks", desc:"Chilled 300ml serving.", veg:true, available:true, featured:false, rating:4.3, emoji:"🥤", img:"images/sprite.jpg", customizable:false, price:50 },
+    { id:"dr-004", name:"Water Bottle", category:"drinks", desc:"500ml packaged drinking water.", veg:true, available:true, featured:false, rating:4.5, emoji:"💧", img:"images/water-bottle.jpg", customizable:false, price:20 },
 
     { id:"ds-001", name:"Chocolate Lava Cake", category:"desserts", desc:"Warm cake with a molten chocolate centre.", veg:true, available:true, featured:true, rating:4.7, emoji:"🍰", customizable:false, price:99 },
     { id:"ds-002", name:"Brownie", category:"desserts", desc:"Fudgy, rich and chocolatey.", veg:true, available:true, featured:false, rating:4.5, emoji:"🍫", customizable:false, price:89 },
 
-    { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", customizable:false, price:249 },
-    { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", customizable:false, price:349 },
-    { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", customizable:false, price:499 },
-    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", customizable:false, price:699 }
+    { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", img:"images/pizza-coke-combo.jpg", customizable:false, comboPizzaCount:1, price:249 },
+    { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", img:"images/pizza-garlic-bread-coke-combo.jpg", customizable:false, comboPizzaCount:1, price:349 },
+    { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", img:"images/couple-combo.jpg", customizable:false, comboPizzaCount:2, price:499 },
+    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", img:"images/family-combo.jpg", customizable:false, comboPizzaCount:2, price:699 }
   ]
 };
 
@@ -803,6 +825,7 @@ const state = {
 
 let currentModalProduct = null;
 let modalState = { size:"medium", crust:"regular", extraCheese:false, toppings:[], qty:1, instructions:"" };
+let comboModalState = { pizzas:[], qty:1 };
 let adminTab = "overview";
 let trackingTimer = null;
 
@@ -847,10 +870,10 @@ function go(view, anchor){
   if(view==='cart') renderCartScreen();
   if(view==='checkout') renderCheckoutScreen();
   if(view==='tracking') renderTrackingScreen();
-  if(view==='orders') renderOrdersScreen();
+  if(view==='orders') loadMyOrders();
   if(view==='favorites') renderFavoritesScreen();
-  if(view==='admin') renderAdminScreen();
-  if(view==='delivery') renderDeliveryScreen();
+  if(view==='admin') showAdminScreen();
+  if(view==='delivery') showDeliveryScreen();
   updateStickyCart();
   if(anchor){ setTimeout(()=>{ const el=document.getElementById(anchor); if(el) el.scrollIntoView({behavior:'smooth'}); }, 60); }
 }
@@ -898,7 +921,7 @@ function useCurrentLocation(){
   navigator.geolocation.getCurrentPosition(pos=>{
     const {latitude, longitude} = pos.coords;
     resolveOutletForLocation(latitude, longitude, document.getElementById('locPillText'));
-    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'' };
+    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'', lat: latitude, lng: longitude };
     renderCheckoutScreen();
   }, err=>{
     document.getElementById('addrStatus').textContent = "Location permission denied. Please enter your address or pincode below.";
@@ -940,7 +963,7 @@ function productCardHTML(p, opts={}){
     <div class="meta"><span class="rating">★ ${p.rating}</span></div>
     <div class="row-bottom">
       <div class="price">${priceLabel}</div>
-      <button class="btn btn-primary btn-sm" ${!p.available?'disabled':''} onclick="handleProductClick('${p.id}')">${p.available? (p.customizable?'Customize':'Add') : 'Sold Out'}</button>
+      <button class="btn btn-primary btn-sm" ${!p.available?'disabled':''} onclick="handleProductClick('${p.id}')">${p.available? ((p.customizable||p.comboPizzaCount)?'Customize':'Add') : 'Sold Out'}</button>
     </div>
   </div>`;
 }
@@ -1002,6 +1025,7 @@ function renderMenuGrid(){
 function handleProductClick(id){
   const p = findProduct(id);
   if(!p.available){ return; }
+  if(p.comboPizzaCount){ openComboModal(p); return; }
   if(!p.customizable){
     addToCart(p, { size:null, crust:null, extraCheese:false, toppings:[], qty:1, instructions:'' });
     toast(p.name + " added to cart");
@@ -1013,6 +1037,66 @@ function openProductModal(p){
   currentModalProduct = p;
   modalState = { size:'medium', crust:'regular', extraCheese:false, toppings:[], qty:1, instructions:'' };
   renderModal();
+}
+function openComboModal(p){
+  currentModalProduct = p;
+  const firstPizza = DATA.products.find(x=>x.category==='pizza' && x.available);
+  comboModalState = { pizzas: Array(p.comboPizzaCount).fill(firstPizza ? firstPizza.id : ''), qty: 1 };
+  renderComboModal();
+}
+function renderComboModal(){
+  const p = currentModalProduct;
+  const root = document.getElementById('modalRoot');
+  const pizzaOptions = DATA.products.filter(x=>x.category==='pizza' && x.available);
+  root.innerHTML = `
+  <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-hero">${plateHTML(p)}</div>
+      <div class="modal-body">
+        <h3>${p.name}</h3>
+        <p class="desc">${p.desc}</p>
+
+        ${comboModalState.pizzas.map((pid,idx)=>`
+          <div class="opt-group">
+            <div class="lbl">Choose Your Pizza${comboModalState.pizzas.length>1? ' ' + (idx+1) : ''}</div>
+            <select class="instr" style="height:46px;padding:0 12px;" onchange="setComboPizza(${idx}, this.value)">
+              ${pizzaOptions.map(op=>`<option value="${op.id}" ${op.id===pid?'selected':''}>${op.name}</option>`).join('')}
+            </select>
+          </div>
+        `).join('')}
+
+        <div class="opt-group">
+          <div class="lbl">Quantity</div>
+          <div class="qty-control">
+            <button onclick="changeComboQty(-1)">−</button>
+            <span id="modalQtyLabel">${comboModalState.qty}</span>
+            <button onclick="changeComboQty(1)">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="tot"><small>Total</small>${rupee(p.price*comboModalState.qty)}</div>
+        <button class="btn btn-primary" onclick="confirmComboAddToCart()">Add to Cart</button>
+      </div>
+    </div>
+  </div>`;
+}
+function setComboPizza(idx, pid){ comboModalState.pizzas[idx] = pid; }
+function changeComboQty(delta){ comboModalState.qty = Math.max(1, comboModalState.qty+delta); renderComboModal(); }
+function confirmComboAddToCart(){
+  const p = currentModalProduct;
+  const pizzaNames = comboModalState.pizzas.map(pid=>{ const pr = DATA.products.find(x=>x.id===pid); return pr ? pr.name : ''; }).filter(Boolean);
+  state.cart.push({
+    lineId: 'l' + Date.now() + Math.random().toString(16).slice(2),
+    productId: p.id, name: p.name, emoji: p.emoji, img: p.img,
+    size:null, crust:null, extraCheese:false, toppings:[],
+    qty: comboModalState.qty, instructions:'', comboPizzas: pizzaNames,
+    unitPrice: p.price, lineTotal: p.price*comboModalState.qty
+  });
+  updateStickyCart();
+  toast(p.name + " added to cart");
+  closeModal();
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; currentModalProduct = null; }
 function calcModalTotal(){
@@ -1181,6 +1265,7 @@ function updateStickyCart(){
 }
 function customizationSummary(item){
   const parts = [];
+  if(item.comboPizzas && item.comboPizzas.length){ parts.push('Pizza: ' + item.comboPizzas.join(' + ')); }
   if(item.size) parts.push(item.size.charAt(0).toUpperCase()+item.size.slice(1));
   if(item.crust && item.crust!=='regular'){ const c = DATA.crusts.find(x=>x.id===item.crust); if(c) parts.push(c.label); }
   if(item.extraCheese) parts.push('Extra Cheese');
@@ -1421,10 +1506,10 @@ async function placeOrder(){
 function renderConfirmation(order){
   document.getElementById('confirmCard').innerHTML = `
     <div class="oid">Order #${order.id}</div>
-    <div class="order-line"><span>Outlet</span><span>${order.outletName}</span></div>
+    <div class="order-line"><span>Outlet</span><span>${order.outlet?.name || ''}</span></div>
     ${order.items.map(i=>`<div class="order-line"><span>${i.qty} × ${i.name}</span><span>${rupee(i.lineTotal)}</span></div>`).join('')}
-    <div class="order-line"><span>Delivery Address</span><span>${order.address}</span></div>
-    <div class="order-line"><span>Payment Method</span><span>${paymentLabel(order.payment)}</span></div>
+    <div class="order-line"><span>Delivery Address</span><span>${order.address?.text || ''}</span></div>
+    <div class="order-line"><span>Payment Method</span><span>${paymentLabel(order.paymentMethod)}</span></div>
     <div class="order-line" style="font-weight:800;color:var(--navy)"><span>Total</span><span>${rupee(order.totals.grandTotal)}</span></div>`;
   document.getElementById('trackOrderLine').textContent = "Tracking order #" + order.id;
 }
@@ -1464,6 +1549,11 @@ function simulateOrderProgress(orderId){
   }, 5000);
 }
 
+const SIMPLE_STEPS = [
+  {label:'Preparing your order', em:'🍕', match:['placed','confirmed','preparing','ready']},
+  {label:'Out for Delivery', em:'🛵', match:['outfordelivery']},
+  {label:'Delivered', em:'🎉', match:['delivered']}
+];
 function renderTrackingScreen(){
   const box = document.getElementById('trackContent');
   const order = state.orders[0];
@@ -1472,15 +1562,19 @@ function renderTrackingScreen(){
     box.innerHTML = `<div class="empty-state"><div class="em">📦</div><h3>No active orders</h3><p>Place an order to see live tracking here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>`;
     return;
   }
-  const currentIndex = STATUS_STEPS.findIndex(s=>s.id===order.status);
+  if(order.status==='cancelled'){
+    box.innerHTML = `<div class="empty-state"><div class="em">❌</div><h3>Order Cancelled</h3><p>Order #${order.id} was cancelled.</p></div>`;
+    return;
+  }
+  const currentIndex = SIMPLE_STEPS.findIndex(s=>s.match.includes(order.status));
   box.innerHTML = `
     <div class="track-steps">
-      ${STATUS_STEPS.map((s,idx)=>{
+      ${SIMPLE_STEPS.map((s,idx)=>{
         const done = idx < currentIndex, active = idx===currentIndex;
         return `<div class="tstep ${done?'done':''} ${active?'active':''}"><div class="connector"></div><div class="dot">${done?'✓':s.em}</div><div><h5>${s.label}</h5><p>${active?'In progress…':(done?'Completed':'Pending')}</p></div></div>`;
       }).join('')}
     </div>
-    ${order.status==='outfordelivery' ? `<div class="live-map"><div class="rider">🛵</div><span>Simulated live location — demo tracking only</span></div>` : ''}
+    ${order.status==='outfordelivery' ? `<div class="live-map"><div class="rider">🛵</div><span>Your order is on the way!</span></div>` : ''}
     <div class="order-card" style="margin-top:24px;">
       <div class="oid">Order #${order.id}</div>
       ${order.items.map(i=>`<div class="order-line"><span>${i.qty} × ${i.name}</span><span>${rupee(i.lineTotal)}</span></div>`).join('')}
@@ -1491,26 +1585,82 @@ function renderTrackingScreen(){
 /* ============================================================================
    MY ORDERS
    ============================================================================ */
-function renderOrdersScreen(){
-  const box = document.getElementById('ordersList');
-  if(state.orders.length===0){
-    box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Your order history for this session will show up here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>`;
+let myOrdersCache = [];
+async function loadMyOrders(){
+  const inputPhone = document.getElementById('ordersPhoneInput')?.value.replace(/\D/g,'');
+  const phone = inputPhone || localStorage.getItem('bb_customer_phone') || '';
+  const errBox = document.getElementById('ordersLookupError');
+  if(!phone || phone.length !== 10){
+    if(errBox) errBox.textContent = 'Please enter a valid 10-digit mobile number.';
+    document.getElementById('ordersLookup').classList.remove('hide');
     return;
   }
-  box.innerHTML = state.orders.map(o=>{
+  if(errBox) errBox.textContent = '';
+  localStorage.setItem('bb_customer_phone', phone);
+  const box = document.getElementById('ordersList');
+  box.innerHTML = `<p style="color:var(--ink-soft);">Loading your orders…</p>`;
+  try{
+    const r = await fetch('/api/orders?phone=' + encodeURIComponent(phone));
+    const orders = await r.json();
+    myOrdersCache = orders;
+    renderOrdersScreen();
+  }catch(e){
+    box.innerHTML = `<div class="empty-state"><div class="em">⚠️</div><h3>Could not load orders</h3><p>Please try again.</p></div>`;
+  }
+}
+function renderOrdersScreen(){
+  const box = document.getElementById('ordersList');
+  const savedPhone = localStorage.getItem('bb_customer_phone');
+  if(!savedPhone){
+    document.getElementById('ordersLookup').classList.remove('hide');
+    box.innerHTML = '';
+    return;
+  }
+  document.getElementById('ordersLookup').classList.add('hide');
+  if(myOrdersCache.length===0){
+    box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Your order history will show up here.</p><button class="btn btn-primary" onclick="go('menu')">Order Now</button></div>
+      <p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
+    return;
+  }
+  box.innerHTML = myOrdersCache.map(o=>{
     const stClass = o.status==='delivered' ? 'delivered' : (o.status==='placed'||o.status==='confirmed') ? 'placed' : 'transit';
+    const canCancel = o.status!=='delivered' && o.status!=='cancelled';
     return `<div class="order-row">
-      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outletName}</div></div>
+      <div><b>#${o.id}</b><div style="font-size:12px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.outlet?.name||''}</div>
+      ${o.status==='cancelled' ? `<div style="font-size:11.5px;color:var(--red);">Cancelled by ${o.cancelledBy||'—'}</div>` : ''}</div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span class="st ${stClass}">${STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status}</span>
-        <button class="btn btn-ghost btn-sm" onclick="go('tracking')">Track</button>
+        <span class="st ${o.status==='cancelled'?'cancelled':stClass}">${o.status==='cancelled' ? 'Cancelled' : (STATUS_STEPS.find(s=>s.id===o.status)?.label || o.status)}</span>
+        <button class="btn btn-ghost btn-sm" onclick="trackThisOrder('${o.id}')">Track</button>
         <button class="btn btn-ghost btn-sm" onclick="reorder('${o.id}')">Reorder</button>
+        ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="customerCancelOrder('${o.id}')">Cancel</button>` : ''}
       </div>
     </div>`;
-  }).join('');
+  }).join('') + `<p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
+}
+async function customerCancelOrder(orderId){
+  if(!confirm("Are you sure you want to cancel this order?")) return;
+  const phone = localStorage.getItem('bb_customer_phone') || '';
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cancelledBy:'customer', phone })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
+    toast("Order cancelled");
+    loadMyOrders();
+  }catch(e){ toast(e.message); }
+}
+function showOrdersLookup(){
+  document.getElementById('ordersLookup').classList.remove('hide');
+  document.getElementById('ordersPhoneInput').value = '';
+}
+function trackThisOrder(orderId){
+  const order = myOrdersCache.find(o=>o.id===orderId);
+  if(order){ state.orders = [order]; }
+  go('tracking');
 }
 function reorder(orderId){
-  const order = state.orders.find(o=>o.id===orderId);
+  const order = myOrdersCache.find(o=>o.id===orderId);
   if(!order) return;
   order.items.forEach(i=> state.cart.push({...i, lineId:'l'+Date.now()+Math.random()}));
   updateStickyCart();
@@ -1547,48 +1697,102 @@ function openPolicy(key){
 /* ============================================================================
    ADMIN DASHBOARD (demo)
    ============================================================================ */
+let adminProductsCache = [];
+function showAdminScreen(){
+  const savedKey = sessionStorage.getItem('bb_admin_key');
+  if(savedKey){
+    state.adminKey = savedKey;
+    document.getElementById('adminLoginBox').classList.add('hide');
+    document.getElementById('adminPanelBox').classList.remove('hide');
+    setAdminTab('overview');
+  } else {
+    document.getElementById('adminLoginBox').classList.remove('hide');
+    document.getElementById('adminPanelBox').classList.add('hide');
+  }
+}
+async function adminLogin(){
+  const pw = document.getElementById('adminPasswordInput').value;
+  const errBox = document.getElementById('adminLoginError');
+  errBox.textContent = '';
+  if(!pw){ errBox.textContent = 'Please enter the password.'; return; }
+  try{
+    const r = await fetch('/api/admin/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Login failed');
+    state.adminKey = pw;
+    sessionStorage.setItem('bb_admin_key', pw);
+    document.getElementById('adminLoginBox').classList.add('hide');
+    document.getElementById('adminPanelBox').classList.remove('hide');
+    document.getElementById('adminSubtitle').textContent = 'Manage your live menu, orders and outlets.';
+    setAdminTab('overview');
+  }catch(e){
+    errBox.textContent = e.message;
+  }
+}
+function adminHeaders(){
+  return { 'Content-Type':'application/json', 'x-admin-key': state.adminKey || '' };
+}
 function setAdminTab(tab){
   adminTab = tab;
   document.querySelectorAll('.admin-side button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   renderAdminScreen();
 }
-function renderAdminScreen(){
+async function renderAdminScreen(){
   const box = document.getElementById('adminContent');
+  box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
+
   if(adminTab==='overview'){
-    const todaysOrders = state.orders.length;
-    const todaysSales = state.orders.reduce((s,o)=>s+o.totals.grandTotal,0);
-    const pending = state.orders.filter(o=>o.status!=='delivered').length;
-    const completed = state.orders.filter(o=>o.status==='delivered').length;
+    const productsRes = await fetch('/api/products');
+    const products = await productsRes.json();
+    adminProductsCache = products;
+    const ordersRes = await fetch('/api/orders');
+    const orders = await ordersRes.json();
+    const today = new Date().toDateString();
+    const todaysOrders = orders.filter(o=>new Date(o.placedAt).toDateString()===today);
+    const todaysSales = todaysOrders.reduce((s,o)=>s+(o.totals?.grandTotal||0),0);
+    const pending = orders.filter(o=>o.status!=='delivered' && o.status!=='cancelled').length;
+    const completed = orders.filter(o=>o.status==='delivered').length;
     box.innerHTML = `
       <div class="stat-grid">
-        <div class="stat-card"><b>${todaysOrders}</b><span>Today's Orders</span></div>
+        <div class="stat-card"><b>${todaysOrders.length}</b><span>Today's Orders</span></div>
         <div class="stat-card"><b>${rupee(todaysSales)}</b><span>Today's Sales</span></div>
         <div class="stat-card"><b>${pending}</b><span>Pending Orders</span></div>
         <div class="stat-card"><b>${completed}</b><span>Completed Orders</span></div>
       </div>
       <table class="admin-tbl">
         <tr><th>Popular Product</th><th>Category</th><th>Rating</th></tr>
-        ${DATA.products.filter(p=>p.featured).map(p=>`<tr><td>${p.emoji} ${p.name}</td><td>${p.category}</td><td>★ ${p.rating}</td></tr>`).join('')}
+        ${products.filter(p=>p.featured).map(p=>`<tr><td>${p.emoji||''} ${p.name}</td><td>${p.category}</td><td>★ ${p.rating||''}</td></tr>`).join('')}
       </table>`;
   } else if(adminTab==='products'){
+    const r = await fetch('/api/products');
+    const products = await r.json();
+    adminProductsCache = products;
     box.innerHTML = `<table class="admin-tbl">
       <tr><th>Product</th><th>Category</th><th>Price(s)</th><th>Status</th></tr>
-      ${DATA.products.map(p=>`<tr>
-        <td>${p.emoji} ${p.name}</td><td>${p.category}</td>
-        <td>${p.customizable ? `S:<input value="${p.prices.small}" onchange="editProductPrice('${p.id}','small',this.value)"> M:<input value="${p.prices.medium}" onchange="editProductPrice('${p.id}','medium',this.value)"> L:<input value="${p.prices.large}" onchange="editProductPrice('${p.id}','large',this.value)">`
-                          : `<input value="${p.price}" onchange="editProductPrice('${p.id}','flat',this.value)">`}</td>
+      ${products.map(p=>`<tr>
+        <td>${p.emoji||''} ${p.name}</td><td>${p.category}</td>
+        <td>${p.customizable ? `S:<input value="${p.prices.small}" onchange="editProductPrice('${p.id}','small',this.value)" style="width:60px;"> M:<input value="${p.prices.medium}" onchange="editProductPrice('${p.id}','medium',this.value)" style="width:60px;"> L:<input value="${p.prices.large}" onchange="editProductPrice('${p.id}','large',this.value)" style="width:60px;">`
+                          : `<input value="${p.price}" onchange="editProductPrice('${p.id}','flat',this.value)" style="width:70px;">`}</td>
         <td><button class="btn btn-sm ${p.available?'btn-ghost':'btn-secondary'}" onclick="toggleProductAvailability('${p.id}')">${p.available?'Available':'Out of Stock'}</button></td>
       </tr>`).join('')}
     </table>`;
   } else if(adminTab==='orders'){
-    if(state.orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
+    const r = await fetch('/api/orders');
+    const orders = await r.json();
+    if(orders.length===0){ box.innerHTML = `<div class="empty-state"><div class="em">🧾</div><h3>No orders yet</h3><p>Orders placed on the site will appear here.</p></div>`; return; }
     box.innerHTML = `<table class="admin-tbl">
-      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Status</th></tr>
-      ${state.orders.map(o=>`<tr>
-        <td>#${o.id}</td><td>${o.outletName}</td><td>${rupee(o.totals.grandTotal)}</td>
-        <td><select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
+      <tr><th>Order ID</th><th>Outlet</th><th>Total</th><th>Delivered By</th><th>Status</th><th>Cancelled By</th><th></th></tr>
+      ${orders.map(o=>`<tr>
+        <td>#${o.id}</td><td>${o.outlet?.name||''}</td><td>${rupee(o.totals?.grandTotal||0)}</td>
+        <td>${o.deliveryPartnerName || '—'}</td>
+        <td>${o.status==='cancelled' ? '<span style="color:var(--red);font-weight:700;">Cancelled</span>' : `<select class="st-select" onchange="adminSetOrderStatus('${o.id}', this.value)">
           ${STATUS_STEPS.map(s=>`<option value="${s.id}" ${o.status===s.id?'selected':''}>${s.label}</option>`).join('')}
-        </select></td>
+        </select>`}</td>
+        <td>${o.status==='cancelled' ? `${o.cancelledBy||'—'}${o.cancelledByName ? ' ('+o.cancelledByName+')' : ''}` : '—'}</td>
+        <td>${(o.status!=='delivered' && o.status!=='cancelled') ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="adminCancelOrder('${o.id}')">Cancel</button>` : ''}</td>
       </tr>`).join('')}
     </table>`;
   } else if(adminTab==='outlets'){
@@ -1604,20 +1808,49 @@ function renderAdminScreen(){
     </table>`;
   }
 }
-function editProductPrice(id, key, val){
-  const p = findProduct(id); const num = parseFloat(val);
+async function editProductPrice(id, key, val){
+  const num = parseFloat(val);
   if(isNaN(num)) return;
-  if(key==='flat') p.price = num; else p.prices[key] = num;
-  toast("Price updated (demo — session only)");
-  if(state.view==='home') renderHome(); if(state.view==='menu') renderMenuGrid();
+  const p = adminProductsCache.find(x=>x.id===id);
+  const body = key==='flat' ? { price: num } : { prices: { ...p.prices, [key]: num } };
+  try{
+    const r = await fetch('/api/admin/products/' + encodeURIComponent(id), {
+      method:'PUT', headers: adminHeaders(), body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    toast("Price updated");
+  }catch(e){ toast(e.message); }
 }
-function toggleProductAvailability(id){
-  const p = findProduct(id); p.available = !p.available; renderAdminScreen();
-  if(state.view==='menu') renderMenuGrid();
+async function toggleProductAvailability(id){
+  const p = adminProductsCache.find(x=>x.id===id);
+  try{
+    const r = await fetch('/api/admin/products/' + encodeURIComponent(id), {
+      method:'PUT', headers: adminHeaders(), body: JSON.stringify({ available: !p.available })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    renderAdminScreen();
+  }catch(e){ toast(e.message); }
 }
-function adminSetOrderStatus(orderId, status){
-  const o = state.orders.find(o=>o.id===orderId); if(o){ o.status = status; }
-  if(state.view==='tracking') renderTrackingScreen();
+async function adminSetOrderStatus(orderId, status){
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    toast("Order status updated");
+  }catch(e){ toast(e.message); }
+}
+async function adminCancelOrder(orderId){
+  if(!confirm("Cancel this order?")) return;
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cancelledBy:'admin', name:'Admin' })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
+    toast("Order cancelled");
+    renderAdminScreen();
+  }catch(e){ toast(e.message); }
 }
 function toggleCoupon(code){
   const c = DATA.coupons.find(c=>c.code===code); c.active = !c.active; renderAdminScreen();
@@ -1626,37 +1859,141 @@ function toggleCoupon(code){
 /* ============================================================================
    DELIVERY DASHBOARD (demo)
    ============================================================================ */
-function renderDeliveryScreen(){
-  const box = document.getElementById('deliveryContent');
-  const active = state.orders.filter(o=>o.status!=='delivered');
-  if(active.length===0){
-    box.innerHTML = `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
+function showDeliveryScreen(){
+  const savedKey = sessionStorage.getItem('bb_delivery_key');
+  const savedName = sessionStorage.getItem('bb_delivery_name');
+  if(savedKey && savedName){
+    state.deliveryKey = savedKey;
+    state.deliveryName = savedName;
+    document.getElementById('deliveryLoginBox').classList.add('hide');
+    document.getElementById('deliveryContent').classList.remove('hide');
+    renderDeliveryScreen();
+  } else {
+    document.getElementById('deliveryLoginBox').classList.remove('hide');
+    document.getElementById('deliveryContent').classList.add('hide');
+  }
+}
+async function deliveryLogin(){
+  const name = (document.getElementById('deliveryNameInput').value || '').trim();
+  const pw = document.getElementById('deliveryPasswordInput').value;
+  const errBox = document.getElementById('deliveryLoginError');
+  errBox.textContent = '';
+  if(!name){ errBox.textContent = 'Please enter your name.'; return; }
+  if(!pw){ errBox.textContent = 'Please enter the password.'; return; }
+  try{
+    const r = await fetch('/api/delivery/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Login failed');
+    state.deliveryKey = pw;
+    state.deliveryName = name;
+    sessionStorage.setItem('bb_delivery_key', pw);
+    sessionStorage.setItem('bb_delivery_name', name);
+    document.getElementById('deliveryLoginBox').classList.add('hide');
+    document.getElementById('deliveryContent').classList.remove('hide');
+    renderDeliveryScreen();
+  }catch(e){
+    errBox.textContent = e.message;
+  }
+}
+function cleanAddressForMaps(text){
+  return (text || '').replace(/[\/\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+let deliveryOrdersCache = [];
+function openNavigate(orderId){
+  const o = deliveryOrdersCache.find(x=>x.id===orderId);
+  if(!o) return;
+  const dest = (o.address?.lat && o.address?.lng)
+    ? `${o.address.lat},${o.address.lng}`
+    : encodeURIComponent(cleanAddressForMaps(o.address?.text) + (o.address?.pincode ? (', ' + o.address.pincode) : '') + ', India');
+  if(!navigator.geolocation){
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
     return;
   }
-  const outlet = state.selectedOutlet || DATA.outlets[0];
-  box.innerHTML = active.map(o=>`
+  toast("Getting your current location…");
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+    window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`, '_blank');
+  }, err=>{
+    // Location denied or unavailable — Maps will still ask/use device location itself
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, '_blank');
+  }, { enableHighAccuracy:true, timeout:8000 });
+}
+async function renderDeliveryScreen(){
+  const box = document.getElementById('deliveryContent');
+  box.innerHTML = `<p style="color:var(--ink-soft);">Loading…</p>`;
+  const [r, statsR] = await Promise.all([
+    fetch('/api/orders'),
+    fetch('/api/delivery/stats?name=' + encodeURIComponent(state.deliveryName || ''))
+  ]);
+  const orders = await r.json();
+  const stats = statsR.ok ? await statsR.json() : { delivered: 0 };
+  const active = orders.filter(o=>o.status!=='delivered' && o.status!=='cancelled');
+  deliveryOrdersCache = active;
+  const profileCard = `
+    <div class="co-block" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-weight:800;font-family:var(--font-display);font-size:16px;">👋 ${state.deliveryName || 'Delivery Partner'}</div>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Total Delivered: ${stats.delivered} · Active Now: ${active.length}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="deliveryLogout()">Logout</button>
+    </div>`;
+  if(active.length===0){
+    box.innerHTML = profileCard + `<div class="empty-state"><div class="em">🛵</div><h3>No assigned deliveries</h3><p>New orders will appear here once placed.</p></div>`;
+    return;
+  }
+  const outlet = DATA.outlets[0];
+  box.innerHTML = profileCard + active.map(o=>`
     <div class="deliv-card">
       <div class="top">
-        <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · COD: ${o.payment==='cod'?rupee(o.totals.grandTotal):'₹0 (prepaid)'}</div></div>
+        <div><b style="font-family:var(--font-display);font-size:17px;">#${o.id}</b><div style="font-size:12.5px;color:var(--ink-soft);">${o.items.length} items · ${rupee(o.totals.grandTotal)} · ${o.paymentMethod==='cod'?('COD: '+rupee(o.totals.grandTotal)):'Prepaid (₹0 to collect)'}</div></div>
         <span class="st ${o.status==='delivered'?'delivered':'transit'}">${STATUS_STEPS.find(s=>s.id===o.status)?.label}</span>
       </div>
-      <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Deliver to:</b> ${o.address}</div>
+      <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Deliver to:</b> ${o.address?.text||''}</div>
+      <div style="font-size:13px;color:var(--ink-soft);"><b style="color:var(--ink)">Customer:</b> ${o.customer?.name||''}</div>
       <div class="actions">
-        <a class="btn btn-ghost btn-sm" href="tel:9284434916">📞 Call Customer</a>
-        <a class="btn btn-ghost btn-sm" href="https://wa.me/919284434916" target="_blank">💬 WhatsApp</a> 
-        <a class="btn btn-ghost btn-sm" href="${outlet.mapsLink}" target="_blank">🗺️ Navigate</a> 
-        <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}')">Advance Status →</button> 
+        <a class="btn btn-ghost btn-sm" href="tel:${o.customer?.phone||''}">📞 Call Customer</a>
+        <a class="btn btn-ghost btn-sm" href="https://wa.me/91${o.customer?.phone||''}" target="_blank">💬 WhatsApp</a> 
+        <button class="btn btn-ghost btn-sm" onclick="openNavigate('${o.id}')">🗺️ Navigate</button> 
+        <button class="btn btn-primary btn-sm" onclick="advanceDelivery('${o.id}', '${o.status}')">Advance Status →</button> 
+        <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="deliveryCancelOrder('${o.id}')">Cancel Order</button> 
       </div> 
     </div>`).join(''); 
 } 
-function advanceDelivery(orderId){ 
-  const o = state.orders.find(o=>o.id===orderId); 
+function deliveryLogout(){
+  sessionStorage.removeItem('bb_delivery_key');
+  sessionStorage.removeItem('bb_delivery_name');
+  state.deliveryKey = null; state.deliveryName = null;
+  showDeliveryScreen();
+}
+async function advanceDelivery(orderId, currentStatus){ 
   const seq = STATUS_STEPS.map(s=>s.id); 
-  const i = seq.indexOf(o.status); 
-  if(i < seq.length-1) o.status = seq[i+1]; 
-  renderDeliveryScreen(); 
-  if(state.view==='tracking') renderTrackingScreen(); 
+  const i = seq.indexOf(currentStatus); 
+  if(i >= seq.length-1) return;
+  const nextStatus = seq[i+1];
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/status', {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: nextStatus, deliveryPartnerName: state.deliveryName || '' })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Update failed');
+    toast("Marked as: " + (STATUS_STEPS.find(s=>s.id===nextStatus)?.label || nextStatus));
+    renderDeliveryScreen(); 
+  }catch(e){ toast("Error: " + e.message); }
 } 
+async function deliveryCancelOrder(orderId){
+  if(!confirm("Cancel this order?")) return;
+  try{
+    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cancelledBy:'delivery', name: state.deliveryName || '' })
+    });
+    if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
+    toast("Order cancelled");
+    renderDeliveryScreen();
+  }catch(e){ toast("Error: " + e.message); }
+}
  
 /* ============================================================================ 
    INIT 
