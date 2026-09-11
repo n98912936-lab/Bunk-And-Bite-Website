@@ -925,6 +925,16 @@ async function lookupPincodeFromLatLng(lat, lng){
     return data?.address?.postcode || null;
   }catch(e){ return null; }
 }
+async function lookupPincodeFromAddressText(text){
+  try{
+    const q = encodeURIComponent(text + ', Pune, Maharashtra, India');
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&countrycodes=in&limit=1`);
+    if(!res.ok) return undefined;
+    const data = await res.json();
+    if(!data || !data.length) return undefined; // could not locate this address at all
+    return data[0]?.address?.postcode || undefined; // found a place, but no postcode info available
+  }catch(e){ return undefined; }
+}
 
 function resolveOutletForLocation(lat, lon, pillText){
   const activeOutlets = DATA.outlets.filter(o=>o.active);
@@ -970,7 +980,7 @@ function toggleManualAddr(forceShow){
   if(forceShow===true){ box.classList.remove('hide'); return; }
   box.classList.toggle('hide');
 }
-function saveManualAddress(){
+async function saveManualAddress(){
   const text = document.getElementById('addrText').value.trim();
   const pin = document.getElementById('addrPin').value.trim();
   const statusEl = document.getElementById('addrStatus');
@@ -979,6 +989,13 @@ function saveManualAddress(){
   if(!pincodeAllowed(pin) || (textPin && !pincodeAllowed(textPin))){
     statusEl.innerHTML = pincodeWarningHTML();
     toast("Sorry, we don't deliver to this pincode.");
+    state.address = { mode: null, text: '', pincode: '' };
+    return;
+  }
+  statusEl.textContent = "Address verify ho raha hai…";
+  const foundPin = await lookupPincodeFromAddressText(text);
+  if(foundPin && !pincodeAllowed(foundPin)){
+    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Aapka pincode aur address match nahi ho raha hai. Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') ke bahar ka lag raha hai. Kripya sahi address ya sahi pincode daalein.</span>';
     state.address = { mode: null, text: '', pincode: '' };
     return;
   }
@@ -1027,7 +1044,7 @@ function useCurrentLocationModal(){
     statusEl.textContent = "Location permission denied. Please enter your address or pincode below.";
   });
 }
-function saveManualAddressModal(){
+async function saveManualAddressModal(){
   const text = document.getElementById('addrTextModal').value.trim();
   const pin = document.getElementById('addrPinModal').value.trim();
   const statusEl = document.getElementById('addrStatusModal');
@@ -1036,6 +1053,12 @@ function saveManualAddressModal(){
   if(!pincodeAllowed(pin) || (textPin && !pincodeAllowed(textPin))){
     statusEl.innerHTML = pincodeWarningHTML();
     toast("Sorry, we don't deliver to this pincode.");
+    return;
+  }
+  statusEl.textContent = "Address verify ho raha hai…";
+  const foundPin = await lookupPincodeFromAddressText(text);
+  if(foundPin && !pincodeAllowed(foundPin)){
+    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Aapka pincode aur address match nahi ho raha hai. Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') ke bahar ka lag raha hai.</span>';
     return;
   }
   state.address = { mode:'manual', text: text || ('Pincode '+pin), pincode: pin };
