@@ -408,6 +408,10 @@ app.post("/api/orders", async (req,res) => {
     }
     if (!Array.isArray(items) || !items.length) return res.status(400).json({error:"Cart is empty."});
     if (!address?.text) return res.status(400).json({error:"Delivery address is required."});
+    const ALLOWED_PINCODES = ["411048", "411046", "411037"];
+    if (address.mode === "manual" && !ALLOWED_PINCODES.includes(String(address.pincode || ""))) {
+      return res.status(400).json({ error: "Sorry, we currently deliver only to pincodes " + ALLOWED_PINCODES.join(", ") + "." });
+    }
     if (!outlet?.id) return res.status(400).json({error:"Outlet is required."});
 
     // IMPORTANT: In a production deployment, calculate prices again from the database here.

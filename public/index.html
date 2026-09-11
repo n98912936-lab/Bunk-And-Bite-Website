@@ -819,6 +819,9 @@ const DATA = {
    APPLICATION STATE  (in-memory only — resets on page reload; this is a
    client-only demo, so no backend/database is connected yet)
    ============================================================================ */
+// Only these pincodes are within our single outlet's delivery range.
+// Any address outside this list is rejected on both the client and server.
+const ALLOWED_PINCODES = ["411048", "411046", "411037"];
 const state = {
   view: "home",
   activeCategory: "all",
@@ -967,6 +970,7 @@ function saveHeaderManualAddress(){
   const errBox = document.getElementById('headerAddrError');
   if(!text){ errBox.textContent = "Please enter your address."; return; }
   if(!/^\d{6}$/.test(pin)){ errBox.textContent = "Please enter a valid 6-digit pincode."; return; }
+  if(!ALLOWED_PINCODES.includes(pin)){ errBox.textContent = "Sorry, we don't deliver to this pincode yet. We currently deliver only to " + ALLOWED_PINCODES.join(", ") + "."; return; }
   state.address = { mode:'manual', text, pincode: pin };
   const pillText = document.getElementById('locPillText');
   if(pillText) pillText.textContent = "Delivering to: " + text;
@@ -995,6 +999,8 @@ function saveManualAddress(){
   const text = document.getElementById('addrText').value.trim();
   const pin = document.getElementById('addrPin').value.trim();
   if(!text && !pin){ toast("Please enter an address or pincode."); return; }
+  if(!/^\d{6}$/.test(pin)){ toast("Please enter a valid 6-digit pincode."); return; }
+  if(!ALLOWED_PINCODES.includes(pin)){ toast("Sorry, we don't deliver to this pincode yet. We currently deliver only to " + ALLOWED_PINCODES.join(", ") + "."); return; }
   state.address = { mode:'manual', text: text || ('Pincode '+pin), pincode: pin };
   document.getElementById('addrStatus').textContent = "Delivering to: " + state.address.text;
   renderCheckoutScreen();
