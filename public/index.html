@@ -504,21 +504,22 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
         <div class="co-block">
           <h4><span class="num">1</span> Customer & Delivery Address</h4>
           <div class="field"><label>Full Name</label><input id="customerName" placeholder="Your name" autocomplete="name"></div>
+          <div class="field"><label>Mobile Number</label><input id="customerPhone" placeholder="10-digit mobile number" inputmode="tel" autocomplete="tel"></div>
           <div class="field">
-            <label>Mobile Number</label>
+            <label>Email</label>
             <div style="display:flex;gap:8px;">
-              <input id="customerPhone" placeholder="10-digit mobile number" inputmode="tel" autocomplete="tel" style="flex:1;" oninput="onPhoneChanged()">
-              <button type="button" class="btn btn-ghost btn-sm" id="sendPhoneOtpBtn" onclick="sendPhoneOtp()">Send OTP</button>
+              <input id="customerEmail" placeholder="you@example.com" type="email" autocomplete="email" style="flex:1;" oninput="onEmailChanged()">
+              <button type="button" class="btn btn-ghost btn-sm" id="sendOtpBtn" onclick="sendOtp()">Send OTP</button>
             </div>
           </div>
-          <div class="field" id="phoneOtpFieldWrap" style="display:none;">
-            <label>Enter OTP (sent on WhatsApp)</label>
+          <div class="field" id="otpFieldWrap" style="display:none;">
+            <label>Enter OTP</label>
             <div style="display:flex;gap:8px;">
-              <input id="customerPhoneOtp" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="flex:1;">
-              <button type="button" class="btn btn-ghost btn-sm" id="verifyPhoneOtpBtn" onclick="verifyPhoneOtp()">Verify</button>
+              <input id="customerOtp" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="flex:1;">
+              <button type="button" class="btn btn-ghost btn-sm" id="verifyOtpBtn" onclick="verifyOtp()">Verify</button>
             </div>
           </div>
-          <div id="phoneOtpStatus" style="font-size:13px;color:var(--ink-soft);margin-top:2px;"></div>
+          <div id="emailOtpStatus" style="font-size:13px;color:var(--ink-soft);margin-top:2px;"></div>
           <div class="addr-opts">
             <button class="btn btn-ghost btn-sm" onclick="useCurrentLocation()">📍 Use Current Location</button>
             <button class="btn btn-ghost btn-sm" onclick="toggleManualAddr()">✏️ Enter Manually</button>
@@ -1466,48 +1467,48 @@ function renderCheckoutScreen(){
 }
 function setPaymentMethod(id){ state.paymentMethod = id; renderCheckoutScreen(); }
 
-function onPhoneChanged(){
-  state.phoneVerificationToken = null;
-  state.verifiedPhone = null;
-  document.getElementById('phoneOtpStatus').textContent = '';
-  document.getElementById('phoneOtpFieldWrap').style.display = 'none';
+function onEmailChanged(){
+  state.emailVerificationToken = null;
+  state.verifiedEmail = null;
+  document.getElementById('emailOtpStatus').textContent = '';
+  document.getElementById('otpFieldWrap').style.display = 'none';
 }
-async function sendPhoneOtp(){
-  const phone = (document.getElementById('customerPhone')?.value || '').replace(/\D/g,'');
-  if(phone.length !== 10){ toast("Please enter a valid 10-digit mobile number"); return; }
-  const btn = document.getElementById('sendPhoneOtpBtn');
+async function sendOtp(){
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter a valid email"); return; }
+  const btn = document.getElementById('sendOtpBtn');
   btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Sending…";
   try{
-    const r = await fetch('/api/whatsapp-otp/send', {
+    const r = await fetch('/api/otp/send', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ phone })
+      body: JSON.stringify({ email })
     });
     const data = await r.json();
     if(!r.ok) throw new Error(data.error || 'Could not send OTP');
-    document.getElementById('phoneOtpFieldWrap').style.display = 'block';
-    document.getElementById('phoneOtpStatus').textContent = "OTP sent on WhatsApp! Check your messages.";
+    document.getElementById('otpFieldWrap').style.display = 'block';
+    document.getElementById('emailOtpStatus').textContent = "OTP sent! Check your inbox (valid 10 minutes).";
   }catch(e){
     toast(e.message);
   }finally{
     btn.disabled = false; btn.textContent = originalText;
   }
 }
-async function verifyPhoneOtp(){
-  const phone = (document.getElementById('customerPhone')?.value || '').replace(/\D/g,'');
-  const otp = (document.getElementById('customerPhoneOtp')?.value || '').trim();
+async function verifyOtp(){
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  const otp = (document.getElementById('customerOtp')?.value || '').trim();
   if(!otp){ toast("Please enter the OTP"); return; }
-  const btn = document.getElementById('verifyPhoneOtpBtn');
+  const btn = document.getElementById('verifyOtpBtn');
   btn.disabled = true; const originalText = btn.textContent; btn.textContent = "Verifying…";
   try{
-    const r = await fetch('/api/whatsapp-otp/verify', {
+    const r = await fetch('/api/otp/verify', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ phone, otp })
+      body: JSON.stringify({ email, otp })
     });
     const data = await r.json();
     if(!r.ok) throw new Error(data.error || 'Incorrect OTP');
-    state.phoneVerificationToken = data.verificationToken;
-    state.verifiedPhone = phone;
-    document.getElementById('phoneOtpStatus').textContent = "✅ Mobile number verified.";
+    state.emailVerificationToken = data.verificationToken;
+    state.verifiedEmail = email;
+    document.getElementById('emailOtpStatus').textContent = "✅ Email verified.";
   }catch(e){
     toast(e.message);
   }finally{
@@ -1523,8 +1524,10 @@ async function placeOrder(){
   if(!outlet || !state.address.text){ toast("Please add your delivery address first"); return; }
   if(!name){ toast("Please enter your name"); return; }
   if(phone.length !== 10){ toast("Please enter a valid 10-digit mobile number"); return; }
-  if(!state.phoneVerificationToken || state.verifiedPhone !== phone){
-    toast("Please verify your mobile number with the OTP before placing the order");
+  const email = (document.getElementById('customerEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter your email"); return; }
+  if(!state.emailVerificationToken || state.verifiedEmail !== email){
+    toast("Please verify your email with the OTP before placing the order");
     return;
   }
   if(!isOutletOpenNow(outlet)){ toast("Sorry, the outlet is currently closed."); return; }
@@ -1537,8 +1540,8 @@ async function placeOrder(){
   const itemsWithSummary = state.cart.map(item => ({ ...item, customizationText: customizationSummary(item) }));
 
   const payload = {
-    customer: { name, phone },
-    phoneVerificationToken: state.phoneVerificationToken,
+    customer: { name, phone, email },
+    emailVerificationToken: state.emailVerificationToken,
     items: itemsWithSummary,
     totals: t,
     address: state.address,
@@ -1750,16 +1753,79 @@ function renderOrdersScreen(){
     </div>`;
   }).join('') + `<p style="text-align:center;margin-top:14px;"><a onclick="showOrdersLookup()" style="cursor:pointer;color:var(--red);">Look up a different number</a></p>`;
 }
-async function customerCancelOrder(orderId){
-  if(!confirm("Are you sure you want to cancel this order?")) return;
+let cancelOrderIdPending = null;
+function customerCancelOrder(orderId){
+  cancelOrderIdPending = orderId;
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+  <div class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box" style="max-width:420px;">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-body">
+        <h3>Cancel Order #${orderId}</h3>
+        <p style="color:var(--ink-soft);font-size:13.5px;">For your security, verify the email used on this order before cancelling.</p>
+        <div class="field">
+          <label>Email</label>
+          <div style="display:flex;gap:8px;">
+            <input id="cancelEmail" placeholder="you@example.com" type="email" style="flex:1;" oninput="document.getElementById('cancelOtpFieldWrap').style.display='none'; cancelEmailVerificationToken=null;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="sendCancelOtp()">Send OTP</button>
+          </div>
+        </div>
+        <div class="field" id="cancelOtpFieldWrap" style="display:none;">
+          <label>Enter OTP</label>
+          <div style="display:flex;gap:8px;">
+            <input id="cancelOtp" placeholder="6-digit code" inputmode="numeric" maxlength="6" style="flex:1;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="verifyCancelOtp()">Verify</button>
+          </div>
+        </div>
+        <div id="cancelOtpStatus" style="font-size:13px;color:var(--ink-soft);margin-top:2px;"></div>
+        <button class="btn btn-primary" style="width:100%;margin-top:14px;background:var(--red);" onclick="confirmCustomerCancel()">Cancel This Order</button>
+      </div>
+    </div>
+  </div>`;
+}
+let cancelEmailVerificationToken = null;
+async function sendCancelOtp(){
+  const email = (document.getElementById('cancelEmail')?.value || '').trim();
+  if(!email || !email.includes('@')){ toast("Please enter a valid email"); return; }
+  try{
+    const r = await fetch('/api/otp/send', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Could not send OTP');
+    document.getElementById('cancelOtpFieldWrap').style.display = 'block';
+    document.getElementById('cancelOtpStatus').textContent = "OTP sent! Check your inbox.";
+  }catch(e){ toast(e.message); }
+}
+async function verifyCancelOtp(){
+  const email = (document.getElementById('cancelEmail')?.value || '').trim();
+  const otp = (document.getElementById('cancelOtp')?.value || '').trim();
+  if(!otp){ toast("Please enter the OTP"); return; }
+  try{
+    const r = await fetch('/api/otp/verify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, otp })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Incorrect OTP');
+    cancelEmailVerificationToken = data.verificationToken;
+    document.getElementById('cancelOtpStatus').textContent = "✅ Email verified. You can now cancel.";
+  }catch(e){ toast(e.message); }
+}
+async function confirmCustomerCancel(){
+  const email = (document.getElementById('cancelEmail')?.value || '').trim();
+  if(!cancelEmailVerificationToken){ toast("Please verify your email with the OTP first"); return; }
   const phone = localStorage.getItem('bb_customer_phone') || '';
   try{
-    const r = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+    const r = await fetch('/api/orders/' + encodeURIComponent(cancelOrderIdPending) + '/cancel', {
       method:'PATCH', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ cancelledBy:'customer', phone })
+      body: JSON.stringify({ cancelledBy:'customer', phone, email, emailVerificationToken: cancelEmailVerificationToken })
     });
     if(!r.ok) throw new Error((await r.json()).error || 'Could not cancel order');
     toast("Order cancelled");
+    closeModal();
     loadMyOrders();
   }catch(e){ toast(e.message); }
 }

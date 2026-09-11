@@ -400,10 +400,11 @@ app.post("/api/whatsapp-otp/verify", async (req, res) => {
 // ---------------- Orders ----------------
 app.post("/api/orders", async (req,res) => {
   try {
-    const { customer, items, totals, address, outlet, paymentMethod, phoneVerificationToken } = req.body;
+    const { customer, items, totals, address, outlet, paymentMethod, emailVerificationToken } = req.body;
     if (!customer?.name || !validPhone(customer.phone)) return res.status(400).json({error:"Valid customer name and 10-digit mobile number are required."});
-    if (!verifyPhoneVerificationToken(phoneVerificationToken, String(customer.phone))) {
-      return res.status(400).json({error:"Please verify your mobile number with the OTP before placing the order."});
+    if (!validEmail(customer.email)) return res.status(400).json({error:"A valid email is required."});
+    if (!verifyEmailVerificationToken(emailVerificationToken, customer.email)) {
+      return res.status(400).json({error:"Please verify your email with the OTP before placing the order."});
     }
     if (!Array.isArray(items) || !items.length) return res.status(400).json({error:"Cart is empty."});
     if (!address?.text) return res.status(400).json({error:"Delivery address is required."});
@@ -414,7 +415,7 @@ app.post("/api/orders", async (req,res) => {
     const orderId = await nextOrderNumber();
     const order = new Order({
       id: orderId,
-      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone), email: `${String(customer.phone)}@guest.bunkandbite.local` },
+      customer: { name: String(customer.name).slice(0,100), phone: String(customer.phone), email: String(customer.email).toLowerCase() },
       items,
       totals,
       address,
@@ -535,7 +536,7 @@ app.patch("/api/orders/:id/status", async (req,res) => {
 // ---------------- Cancel order (customer / delivery / admin) ----------------
 app.patch("/api/orders/:id/cancel", async (req, res) => {
   try {
-    const { cancelledBy, name, phone } = req.body; // cancelledBy: "customer" | "delivery" | "admin"
+    const { cancelledBy, name, phone, email, emailVerificationToken } = req.body; // cancelledBy: "customer" | "delivery" | "admin"
     const validRoles = ["customer", "delivery", "admin"];
     if (!validRoles.includes(cancelledBy)) return res.status(400).json({ error: "Invalid cancellation source." });
 
@@ -544,14 +545,16 @@ app.patch("/api/orders/:id/cancel", async (req, res) => {
     if (order.status === "delivered") return res.status(400).json({ error: "Delivered orders can't be cancelled." });
     if (order.status === "cancelled") return res.status(400).json({ error: "This order is already cancelled." });
 
-    // A customer can only cancel their own order — verify by phone match.
+    // A customer can only cancel their own order — phone must match AND email OTP must be verified.
     if (cancelledBy === "customer") {
       if (!phone || phone !== order.customer.phone) {
         return res.status(403).json({ error: "Phone number does not match this order." });
       }
+      if (!email || email.toLowerCase() !== String(order.customer.email || "").toLowerCase() || !verifyEmailVerificationToken(emailVerificationToken, email)) {
+        return res.status(403).json({ error: "Please verify your email with the OTP before cancelling this order." });
+      }
     }
 
-    if (!order.customer.email) order.customer.email = `${order.customer.phone}@guest.bunkandbite.local`; // backfill legacy orders
     order.status = "cancelled";
     order.updatedAt = new Date();
     order.set("cancelledBy", cancelledBy, { strict: false });
