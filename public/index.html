@@ -925,15 +925,27 @@ async function lookupPincodeFromLatLng(lat, lng){
     return data?.address?.postcode || null;
   }catch(e){ return null; }
 }
+const OUTLET_LAT = 18.4585, OUTLET_LON = 73.8677;
+const LOCAL_AREA_KEYWORDS = ['katraj','kondhwa','tilekar nagar','tilekar','dhankawadi','bibwewadi','balaji nagar','ambegaon','katraj-kondhwa'];
+function addressMentionsLocalArea(text){
+  const t = String(text||'').toLowerCase();
+  return LOCAL_AREA_KEYWORDS.some(k=>t.includes(k));
+}
 async function lookupPincodeFromAddressText(text){
+  // Only search WITHIN a small box around our outlet (bounded=1) — if the typed
+  // address doesn't resolve to anything near us, that itself is a strong signal
+  // it's a different, far-away place (this is how we catch mismatched addresses
+  // that don't contain a 6-digit pincode at all).
+  const delta = 0.06; // roughly a 6-7km box around the outlet
+  const viewbox = `${OUTLET_LON-delta},${OUTLET_LAT+delta},${OUTLET_LON+delta},${OUTLET_LAT-delta}`;
   try{
-    const q = encodeURIComponent(text + ', Pune, Maharashtra, India');
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&countrycodes=in&limit=1`);
-    if(!res.ok) return undefined;
+    const q = encodeURIComponent(text);
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&addressdetails=1&countrycodes=in&viewbox=${viewbox}&bounded=1&limit=1`);
+    if(!res.ok) return { found:false, postcode:null };
     const data = await res.json();
-    if(!data || !data.length) return undefined; // could not locate this address at all
-    return data[0]?.address?.postcode || undefined; // found a place, but no postcode info available
-  }catch(e){ return undefined; }
+    if(!data || !data.length) return { found:false, postcode:null };
+    return { found:true, postcode: data[0]?.address?.postcode || null };
+  }catch(e){ return { found:null, postcode:null }; } // null = network/lookup error, don't penalize the customer for that
 }
 
 function resolveOutletForLocation(lat, lon, pillText){
@@ -993,9 +1005,14 @@ async function saveManualAddress(){
     return;
   }
   statusEl.textContent = "Address verify ho raha hai…";
-  const foundPin = await lookupPincodeFromAddressText(text);
-  if(foundPin && !pincodeAllowed(foundPin)){
+  const geo = await lookupPincodeFromAddressText(text);
+  if(geo.postcode && !pincodeAllowed(geo.postcode)){
     statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Aapka pincode aur address match nahi ho raha hai. Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') ke bahar ka lag raha hai. Kripya sahi address ya sahi pincode daalein.</span>';
+    state.address = { mode: null, text: '', pincode: '' };
+    return;
+  }
+  if(geo.found === false && !addressMentionsLocalArea(text)){
+    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') mein nahi mil raha hai. Kripya apna sahi ghar/society ka address, area ka naam (jaise Katraj, Kondhwa) ke saath likhein.</span>';
     state.address = { mode: null, text: '', pincode: '' };
     return;
   }
@@ -1056,9 +1073,13 @@ async function saveManualAddressModal(){
     return;
   }
   statusEl.textContent = "Address verify ho raha hai…";
-  const foundPin = await lookupPincodeFromAddressText(text);
-  if(foundPin && !pincodeAllowed(foundPin)){
+  const geo = await lookupPincodeFromAddressText(text);
+  if(geo.postcode && !pincodeAllowed(geo.postcode)){
     statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Aapka pincode aur address match nahi ho raha hai. Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') ke bahar ka lag raha hai.</span>';
+    return;
+  }
+  if(geo.found === false && !addressMentionsLocalArea(text)){
+    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') mein nahi mil raha hai. Kripya apna sahi ghar/society ka address, area ka naam (jaise Katraj, Kondhwa) ke saath likhein.</span>';
     return;
   }
   state.address = { mode:'manual', text: text || ('Pincode '+pin), pincode: pin };
