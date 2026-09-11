@@ -196,7 +196,12 @@ async function nextOrderNumber() {
   return `${prefix}-${String(countToday + 1).padStart(4,"0")}`;
 }
 function validPhone(phone) {
-  return /^[6-9]\d{9}$/.test(String(phone || ""));
+  const p = String(phone || "");
+  if (!/^[6-9]\d{9}$/.test(p)) return false;
+  if (/^(\d)\1{9}$/.test(p)) return false; // all same digit e.g. 9999999999
+  const sequences = ["1234567890", "0123456789", "9876543210"];
+  if (sequences.includes(p)) return false;
+  return true;
 }
 
 // ---------------- Admin auth ----------------

@@ -1530,6 +1530,10 @@ async function placeOrder(){
   if(!outlet || !state.address.text){ toast("Please add your delivery address first"); return; }
   if(!name){ toast("Please enter your name"); return; }
   if(phone.length !== 10){ toast("Please enter a valid 10-digit mobile number"); return; }
+  if(!/^[6-9]\d{9}$/.test(phone) || /^(\d)\1{9}$/.test(phone) || ["1234567890","0123456789","9876543210"].includes(phone)){
+    toast("Please enter a real mobile number");
+    return;
+  }
   const email = (document.getElementById('customerEmail')?.value || '').trim();
   if(!email || !email.includes('@')){ toast("Please enter your email"); return; }
   if(!state.emailVerificationToken || state.verifiedEmail !== email){
