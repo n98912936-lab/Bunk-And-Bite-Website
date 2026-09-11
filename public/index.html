@@ -525,7 +525,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
           </div>
           <div id="manualAddrFields" class="hide">
             <div class="field"><label>Full Address</label><textarea id="addrText" rows="2" placeholder="House no, street, area..."></textarea>
-              <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">📍 Hum abhi sirf Katraj, Kondhwa aur Dhankawadi area (pincode 411048, 411046, 411037) mein hi delivery kar paate hain — kripya apna address inhi ilakon ka daalein, taaki hum aapka order turant deliver kar sakein 😊</div>
+              <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">📍 Hum abhi sirf Katraj, Kondhwa aur Yewalewadi area (pincode 411048, 411046, 411037) mein hi delivery kar paate hain — kripya apna address inhi ilakon ka daalein, taaki hum aapka order turant deliver kar sakein 😊</div>
             </div>
             <div class="field"><label>Pincode</label><input id="addrPin" placeholder="e.g. 411046"></div>
             <div style="color:#D6291B;font-size:12.5px;font-weight:700;margin:4px 0 8px;">⚠️ Dhyan de: Hum abhi sirf in 3 pincode mein delivery karte hain — 411048, 411046, 411037. Isके alawa koi bhi address accept nahi hoga.</div>
@@ -928,7 +928,7 @@ async function lookupPincodeFromLatLng(lat, lng){
   }catch(e){ return null; }
 }
 const OUTLET_LAT = 18.4585, OUTLET_LON = 73.8677;
-const LOCAL_AREA_KEYWORDS = ['katraj','kondhwa','tilekar nagar','tilekar','dhankawadi','bibwewadi','balaji nagar','ambegaon','katraj-kondhwa'];
+const LOCAL_AREA_KEYWORDS = ['katraj','kondhwa','tilekar nagar','tilekar','yewalewadi','bibwewadi','balaji nagar','ambegaon','katraj-kondhwa'];
 function addressMentionsLocalArea(text){
   const t = String(text||'').toLowerCase();
   return LOCAL_AREA_KEYWORDS.some(k=>t.includes(k));
@@ -1034,7 +1034,7 @@ function openAddressModal(){
           <button class="btn btn-secondary btn-block" onclick="useCurrentLocationModal()">📍 Use Current Location</button>
           <div style="text-align:center;color:var(--ink-soft);font-size:12.5px;margin:14px 0;">— or enter manually —</div>
           <div class="field"><label>Full Address</label><textarea id="addrTextModal" rows="2" placeholder="House no, street, area..."></textarea>
-            <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">📍 Hum abhi sirf Katraj, Kondhwa aur Dhankawadi area (pincode 411048, 411046, 411037) mein hi delivery kar paate hain — kripya apna address inhi ilakon ka daalein, taaki hum aapka order turant deliver kar sakein 😊</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">📍 Hum abhi sirf Katraj, Kondhwa aur Yewalewadi area (pincode 411048, 411046, 411037) mein hi delivery kar paate hain — kripya apna address inhi ilakon ka daalein, taaki hum aapka order turant deliver kar sakein 😊</div>
           </div>
           <div class="field" style="margin-top:10px;"><label>Pincode</label><input id="addrPinModal" placeholder="e.g. 411046"></div>
           <div style="color:#D6291B;font-size:12.5px;font-weight:700;margin:4px 0 0;">⚠️ Dhyan de: Hum abhi sirf in 3 pincode mein delivery karte hain — 411048, 411046, 411037. Isके alawa koi bhi address accept nahi hoga.</div>
