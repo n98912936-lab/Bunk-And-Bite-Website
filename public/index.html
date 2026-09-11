@@ -971,18 +971,10 @@ function useCurrentLocation(){
   if(!navigator.geolocation){ toast("Location services unavailable in this browser."); return; }
   const statusEl = document.getElementById('addrStatus');
   statusEl.textContent = "Detecting your location…";
-  navigator.geolocation.getCurrentPosition(async pos=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
     const {latitude, longitude} = pos.coords;
-    statusEl.textContent = "Checking your delivery area…";
-    const pin = await lookupPincodeFromLatLng(latitude, longitude);
-    if(!pincodeAllowed(pin)){
-      statusEl.innerHTML = pincodeWarningHTML();
-      state.address = { mode:null, text:'', pincode:'' };
-      toggleManualAddr(true);
-      return;
-    }
     resolveOutletForLocation(latitude, longitude, document.getElementById('locPillText'));
-    state.address = { mode:'gps', text:'Current location (Pincode '+pin+')', pincode:pin, lat: latitude, lng: longitude };
+    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'', lat: latitude, lng: longitude };
     renderCheckoutScreen();
   }, err=>{
     statusEl.textContent = "Location permission denied. Please enter your address or pincode below.";
@@ -994,27 +986,14 @@ function toggleManualAddr(forceShow){
   if(forceShow===true){ box.classList.remove('hide'); return; }
   box.classList.toggle('hide');
 }
-async function saveManualAddress(){
+function saveManualAddress(){
   const text = document.getElementById('addrText').value.trim();
   const pin = document.getElementById('addrPin').value.trim();
   const statusEl = document.getElementById('addrStatus');
   if(!text && !pin){ toast("Please enter an address or pincode."); return; }
-  const textPin = findPincodeInText(text);
-  if(!pincodeAllowed(pin) || (textPin && !pincodeAllowed(textPin))){
+  if(!pincodeAllowed(pin)){
     statusEl.innerHTML = pincodeWarningHTML();
     toast("Sorry, we don't deliver to this pincode.");
-    state.address = { mode: null, text: '', pincode: '' };
-    return;
-  }
-  statusEl.textContent = "Address verify ho raha hai…";
-  const geo = await lookupPincodeFromAddressText(text);
-  if(geo.postcode && !pincodeAllowed(geo.postcode)){
-    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Aapka pincode aur address match nahi ho raha hai. Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') ke bahar ka lag raha hai. Kripya sahi address ya sahi pincode daalein.</span>';
-    state.address = { mode: null, text: '', pincode: '' };
-    return;
-  }
-  if(geo.found === false && !addressMentionsLocalArea(text)){
-    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') mein nahi mil raha hai. Kripya apna sahi ghar/society ka address, area ka naam (jaise Katraj, Kondhwa) ke saath likhein.</span>';
     state.address = { mode: null, text: '', pincode: '' };
     return;
   }
@@ -1048,16 +1027,10 @@ function useCurrentLocationModal(){
   const statusEl = document.getElementById('addrStatusModal');
   if(!navigator.geolocation){ statusEl.textContent = "Location services unavailable in this browser."; return; }
   statusEl.textContent = "Detecting your location…";
-  navigator.geolocation.getCurrentPosition(async pos=>{
+  navigator.geolocation.getCurrentPosition(pos=>{
     const {latitude, longitude} = pos.coords;
-    statusEl.textContent = "Checking your delivery area…";
-    const pin = await lookupPincodeFromLatLng(latitude, longitude);
-    if(!pincodeAllowed(pin)){
-      statusEl.innerHTML = pincodeWarningHTML();
-      return;
-    }
     resolveOutletForLocation(latitude, longitude, document.getElementById('locPillText'));
-    state.address = { mode:'gps', text:'Current location (Pincode '+pin+')', pincode:pin, lat: latitude, lng: longitude };
+    state.address = { mode:'gps', text:'Current location (GPS)', pincode:'', lat: latitude, lng: longitude };
     if(state.view==='checkout') renderCheckoutScreen();
     toast("Location set");
     closeModal();
@@ -1065,25 +1038,14 @@ function useCurrentLocationModal(){
     statusEl.textContent = "Location permission denied. Please enter your address or pincode below.";
   });
 }
-async function saveManualAddressModal(){
+function saveManualAddressModal(){
   const text = document.getElementById('addrTextModal').value.trim();
   const pin = document.getElementById('addrPinModal').value.trim();
   const statusEl = document.getElementById('addrStatusModal');
   if(!text && !pin){ toast("Please enter an address or pincode."); return; }
-  const textPin = findPincodeInText(text);
-  if(!pincodeAllowed(pin) || (textPin && !pincodeAllowed(textPin))){
+  if(!pincodeAllowed(pin)){
     statusEl.innerHTML = pincodeWarningHTML();
     toast("Sorry, we don't deliver to this pincode.");
-    return;
-  }
-  statusEl.textContent = "Address verify ho raha hai…";
-  const geo = await lookupPincodeFromAddressText(text);
-  if(geo.postcode && !pincodeAllowed(geo.postcode)){
-    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Aapka pincode aur address match nahi ho raha hai. Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') ke bahar ka lag raha hai.</span>';
-    return;
-  }
-  if(geo.found === false && !addressMentionsLocalArea(text)){
-    statusEl.innerHTML = '<span style="color:#D6291B;font-weight:700;">❌ Ye address hamare delivery area (' + ALLOWED_PINCODES.join(', ') + ') mein nahi mil raha hai. Kripya apna sahi ghar/society ka address, area ka naam (jaise Katraj, Kondhwa) ke saath likhein.</span>';
     return;
   }
   state.address = { mode:'manual', text: text || ('Pincode '+pin), pincode: pin };
