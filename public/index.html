@@ -23,6 +23,10 @@
   --ink-soft:#6b6055;
   --line:#EEE3D6;
   --green:#2E8B57;
+  --sattvik-sage:#7A9B76;
+  --sattvik-sage-dark:#5C7A58;
+  --sattvik-gold:#C9A24B;
+  --sattvik-offwhite:#FBF9F3;
   --radius-lg:26px;
   --radius-md:16px;
   --radius-sm:10px;
@@ -70,6 +74,22 @@ header.site{position:sticky;top:0;z-index:60;background:rgba(255,249,242,.94);ba
 .brand-text{font-family:var(--font-display);font-weight:800;font-size:20px;color:var(--navy);line-height:1;}
 .brand-text small{display:block;font-family:var(--font-body);font-weight:600;font-size:10.5px;color:var(--ink-soft);letter-spacing:.3px;margin-top:3px;}
 nav.mainnav{display:flex;gap:26px;flex:1;justify-content:center;}
+/* ---------------- Sattvik & Jain Kitchen ---------------- */
+.sattvik-toggle-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:6px 14px;border-radius:14px;border:1.5px solid var(--sattvik-sage);background:var(--sattvik-offwhite);cursor:pointer;font-family:var(--font-body);line-height:1.15;}
+.sattvik-toggle-btn.active{background:var(--sattvik-sage);border-color:var(--sattvik-sage-dark);}
+.sattvik-toggle-btn .main-lbl{font-weight:800;font-size:12.5px;color:var(--sattvik-sage-dark);}
+.sattvik-toggle-btn.active .main-lbl{color:#fff;}
+.sattvik-toggle-btn .sub-lbl{font-weight:600;font-size:9.5px;color:var(--ink-soft);}
+.sattvik-toggle-btn.active .sub-lbl{color:#eef5ec;}
+.sattvik-badge{display:inline-flex;align-items:center;gap:4px;background:#EAF3E7;color:var(--sattvik-sage-dark);border:1px solid var(--sattvik-sage);font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;}
+.sattvik-banner{background:linear-gradient(135deg,var(--sattvik-offwhite),#F3EEDF);border:1px solid var(--sattvik-gold);border-radius:var(--radius-lg);padding:28px 24px;text-align:center;margin-bottom:22px;}
+.sattvik-banner h2{font-family:var(--font-display);color:var(--sattvik-sage-dark);font-size:26px;margin-bottom:6px;}
+.sattvik-banner .stmt{color:var(--sattvik-gold);font-weight:800;font-size:14.5px;margin-bottom:8px;}
+.sattvik-banner p{color:var(--ink-soft);font-size:13.5px;max-width:520px;margin:0 auto;}
+.sattvik-mode #screen-menu .pcard{border-color:#E4E9DF;}
+.sattvik-mode #screen-menu .pcard .btn-primary{background:var(--sattvik-sage-dark);}
+.cart-kitchen-group-label{font-size:12px;font-weight:800;color:var(--sattvik-sage-dark);display:flex;align-items:center;gap:5px;margin:10px 0 4px;}
+.sattvik-checkout-note{background:var(--sattvik-offwhite);border:1px solid var(--sattvik-sage);border-radius:var(--radius-md);padding:10px 14px;font-size:12.5px;color:var(--ink-soft);margin:10px 0;}
 nav.mainnav a{font-weight:700;font-size:14.5px;color:var(--navy);padding:6px 2px;border-bottom:2px solid transparent;}
 nav.mainnav a.active,nav.mainnav a:hover{border-bottom-color:var(--red);color:var(--red-dark);}
 .head-actions{display:flex;align-items:center;gap:6px;}
@@ -361,6 +381,10 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
       <a data-go="orders">My Orders</a>
     </nav>
     <div class="head-actions">
+      <button class="sattvik-toggle-btn" id="sattvikToggleBtn" onclick="toggleSattvikKitchen()" title="Switch to Sattvik & Jain Kitchen" aria-pressed="false">
+        <span class="main-lbl">🌿 Sattvik &amp; Jain Kitchen</span>
+        <span class="sub-lbl">No Onion • No Garlic</span>
+      </button>
       <div class="loc-pill" id="locPill" title="Delivery location" onclick="openAddressModal()"><span class="dot"></span><span class="addr" id="locPillText">Detecting location…</span></div>
       <button class="icon-btn" title="Search" onclick="openSearch()">🔍</button>
       <button class="icon-btn" title="Favorites" onclick="go('favorites')">🤍</button>
@@ -480,6 +504,7 @@ select.st-select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;
       <p>Data-driven menu — every price below comes straight from the editable product catalogue.</p>
       <div class="search-bar"><span>🔍</span><input id="menuSearch" placeholder="Search pizzas, burgers, sides…" oninput="renderMenuGrid()"></div>
     </div>
+    <div id="sattvikBannerBox"></div>
     <div class="cat-scroll" id="menuCatScroll"></div>
     <div id="closedBannerMenu"></div>
     <div class="grid" id="menuGrid" style="margin-top:6px;"></div>
@@ -734,6 +759,13 @@ const DATA = {
     { id: "desserts", label: "Desserts", emoji: "🍰" },
     { id: "combos", label: "Combos", emoji: "🎉" }
   ],
+  sattvikCategories: [
+    { id: "sattvik-pizza", label: "Jain Pizzas", emoji: "🍕" },
+    { id: "sattvik-burgers", label: "Jain Burgers", emoji: "🍔" },
+    { id: "sattvik-pasta", label: "Jain Pasta", emoji: "🍝" },
+    { id: "sattvik-shakes", label: "Shakes", emoji: "🥤" },
+    { id: "sattvik-mocktails", label: "Mocktails", emoji: "🍹" }
+  ],
 
   // ---------------- delivery.js ----------------
   delivery: {
@@ -807,7 +839,19 @@ const DATA = {
     { id:"cb-001", name:"Pizza + Coke Combo", category:"combos", desc:"Any medium pizza with a chilled Coke.", veg:true, available:true, featured:true, rating:4.5, emoji:"🎉", img:"images/pizza-coke-combo.jpg", customizable:false, comboPizzaCount:1, price:249 },
     { id:"cb-002", name:"Pizza + Garlic Bread + Coke", category:"combos", desc:"Medium pizza, garlic bread and a Coke.", veg:true, available:true, featured:true, rating:4.6, emoji:"🎉", img:"images/pizza-garlic-bread-coke-combo.jpg", customizable:false, comboPizzaCount:1, price:349 },
     { id:"cb-003", name:"Couple Combo", category:"combos", desc:"2 medium pizzas + garlic bread + 2 drinks.", veg:true, available:true, featured:false, rating:4.6, emoji:"🎉", img:"images/couple-combo.jpg", customizable:false, comboPizzaCount:2, price:499 },
-    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", img:"images/family-combo.jpg", customizable:false, comboPizzaCount:2, price:699 }
+    { id:"cb-004", name:"Family Combo", category:"combos", desc:"2 large pizzas + sides + garlic bread + 4 drinks.", veg:true, available:true, featured:false, rating:4.7, emoji:"🎉", img:"images/family-combo.jpg", customizable:false, comboPizzaCount:2, price:699 },
+
+    // ---------------- Sattvik & Jain Kitchen (separate menu — no onion, no garlic) ----------------
+    { id:"sv-pz-001", name:"Jain Margherita Pizza", category:"sattvik-pizza", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Classic tomato & cheese pizza, prepared without onion or garlic.", veg:true, available:true, featured:true, rating:4.5, emoji:"🌿", customizable:false, price:139 },
+    { id:"sv-pz-002", name:"Jain Cheese Pizza", category:"sattvik-pizza", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Extra cheesy pizza, made the Jain-friendly way.", veg:true, available:true, featured:true, rating:4.4, emoji:"🌿", customizable:false, price:149 },
+    { id:"sv-pz-003", name:"Jain Paneer Pizza", category:"sattvik-pizza", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Soft paneer cubes on a no onion, no garlic base.", veg:true, available:true, featured:false, rating:4.5, emoji:"🌿", customizable:false, price:169 },
+    { id:"sv-pz-004", name:"Jain Corn & Cheese Pizza", category:"sattvik-pizza", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Sweet corn and melted cheese, Sattvik-style.", veg:true, available:true, featured:false, rating:4.3, emoji:"🌿", customizable:false, price:159 },
+    { id:"sv-bg-001", name:"Jain Paneer Burger", category:"sattvik-burgers", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Grilled paneer patty burger, no onion or garlic.", veg:true, available:true, featured:true, rating:4.3, emoji:"🌿", customizable:false, price:139 },
+    { id:"sv-bg-002", name:"Jain Special Veg Burger", category:"sattvik-burgers", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"A wholesome veg patty burger, prepared Sattvik-style.", veg:true, available:true, featured:false, rating:4.2, emoji:"🌿", customizable:false, price:129 },
+    { id:"sv-ps-001", name:"Jain White Sauce Pasta", category:"sattvik-pasta", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Creamy white sauce pasta, no onion or garlic.", veg:true, available:true, featured:true, rating:4.4, emoji:"🌿", customizable:false, price:169 },
+    { id:"sv-ps-002", name:"Jain Cheese Pasta", category:"sattvik-pasta", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Cheesy pasta tossed the Sattvik way.", veg:true, available:true, featured:false, rating:4.3, emoji:"🌿", customizable:false, price:179 },
+    { id:"sv-sk-001", name:"Chocolate Shake (Sattvik)", category:"sattvik-shakes", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Rich chocolate shake made fresh in the Sattvik kitchen.", veg:true, available:true, featured:false, rating:4.5, emoji:"🌿", customizable:false, price:99 },
+    { id:"sv-mk-001", name:"Fresh Lime (Sattvik)", category:"sattvik-mocktails", kitchenType:"sattvik", noOnion:true, noGarlic:true, jain:true, badge:"Sattvik • Jain", desc:"Refreshing fresh lime, prepared in the Sattvik kitchen.", veg:true, available:true, featured:false, rating:4.2, emoji:"🌿", customizable:false, price:69 }
   ]
 };
 
@@ -819,6 +863,7 @@ const ALLOWED_PINCODES = ["411048", "411046", "411037"];
 const state = {
   view: "home",
   activeCategory: "all",
+  activeKitchen: localStorage.getItem('activeKitchen') === 'sattvik' ? 'sattvik' : 'standard',
   menuSearch: "",
   cart: [],              // { lineId, productId, name, emoji, size, crust, extraCheese, toppings[], qty, instructions, unitPrice, lineTotal }
   favorites: [],          // product ids
@@ -892,6 +937,25 @@ function go(view, anchor){
 document.querySelectorAll('[data-go]').forEach(el=>{
   el.addEventListener('click', ()=> go(el.dataset.go, el.dataset.anchor));
 });
+
+/* ---------------- Sattvik & Jain Kitchen toggle ---------------- */
+function updateSattvikToggleUI(){
+  const btn = document.getElementById('sattvikToggleBtn');
+  if(!btn) return;
+  const active = state.activeKitchen === 'sattvik';
+  btn.classList.toggle('active', active);
+  btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  document.body.classList.toggle('sattvik-mode', active);
+}
+function toggleSattvikKitchen(){
+  state.activeKitchen = (state.activeKitchen === 'sattvik') ? 'standard' : 'sattvik';
+  state.activeCategory = 'all';
+  localStorage.setItem('activeKitchen', state.activeKitchen);
+  updateSattvikToggleUI();
+  toast(state.activeKitchen === 'sattvik' ? '🌿 Switched to Sattvik & Jain Kitchen' : 'Switched to Standard Menu');
+  go('menu');
+}
+updateSattvikToggleUI();
 
 /* ============================================================================
    LOCATION / OUTLET SELECTION
@@ -1072,6 +1136,7 @@ function productCardHTML(p, opts={}){
     <button class="fav-btn ${isFav?'active':''}" onclick="toggleFavorite('${p.id}', event)">${isFav?'❤️':'🤍'}</button>
     <div class="plate">${plateHTML(p)}</div>
     <h4>${p.name}</h4>
+    ${p.kitchenType==='sattvik' ? `<div class="sattvik-badge">🌿 ${p.badge || 'Sattvik • Jain'}</div>` : ''}
     <div class="desc">${p.desc}</div>
     <div class="meta"><span class="rating">★ ${p.rating}</span></div>
     <div class="row-bottom">
@@ -1081,7 +1146,7 @@ function productCardHTML(p, opts={}){
   </div>`;
 }
 function renderHome(){
-  document.getElementById('popularGrid').innerHTML = DATA.products.filter(p=>p.featured).slice(0,8).map(p=>productCardHTML(p)).join('');
+  document.getElementById('popularGrid').innerHTML = DATA.products.filter(p=>p.featured && p.kitchenType!=='sattvik').slice(0,8).map(p=>productCardHTML(p)).join('');
   document.getElementById('catGrid').innerHTML = DATA.categories.map(c=>`
     <div class="pcard" style="align-items:center;text-align:center;cursor:pointer;" onclick="state.activeCategory='${c.id}'; go('menu');">
       <div class="plate" style="width:100%;">${c.emoji}</div>
@@ -1100,14 +1165,26 @@ function renderHome(){
    RENDER: MENU
    ============================================================================ */
 function renderMenuScreen(){
+  const isSattvik = state.activeKitchen === 'sattvik';
+  const catList = isSattvik ? DATA.sattvikCategories : DATA.categories;
   document.getElementById('menuCatScroll').innerHTML =
     `<div class="cat-pill ${state.activeCategory==='all'?'active':''}" onclick="setMenuCategory('all')">All</div>` +
-    DATA.categories.map(c=>`<div class="cat-pill ${state.activeCategory===c.id?'active':''}" onclick="setMenuCategory('${c.id}')"><span class="em">${c.emoji}</span>${c.label}</div>`).join('');
+    catList.map(c=>`<div class="cat-pill ${state.activeCategory===c.id?'active':''}" onclick="setMenuCategory('${c.id}')"><span class="em">${c.emoji}</span>${c.label}</div>`).join('');
   const outlet = state.selectedOutlet;
   const closedBox = document.getElementById('closedBannerMenu');
   if(outlet && !isOutletOpenNow(outlet)){
     closedBox.innerHTML = `<div class="closed-banner">🕒 We're currently closed. Online ordering will reopen at ${formatTime(outlet.openingTime)}. You can still browse the menu below.</div>`;
   } else { closedBox.innerHTML = ''; }
+  const bannerBox = document.getElementById('sattvikBannerBox');
+  if(bannerBox){
+    bannerBox.innerHTML = isSattvik ? `
+      <div class="sattvik-banner">
+        <h2>🌿 Sattvik &amp; Jain Kitchen</h2>
+        <div class="stmt">Different Mood, Different Kitchen</div>
+        <div class="stmt" style="color:var(--sattvik-sage-dark);">100% Pure Veg • No Onion • No Garlic</div>
+        <p>Prepared with utmost care and purity for customers looking for a dedicated Sattvik &amp; Jain food experience.</p>
+      </div>` : '';
+  }
   renderMenuGrid();
 }
 function formatTime(t){
@@ -1119,10 +1196,12 @@ function setMenuCategory(cat){ state.activeCategory = cat; renderMenuScreen(); }
 function renderMenuGrid(){
   const q = (document.getElementById('menuSearch')?.value || '').toLowerCase();
   state.menuSearch = q;
+  const isSattvik = state.activeKitchen === 'sattvik';
   let list = DATA.products.filter(p=>{
+    const matchesKitchen = isSattvik ? p.kitchenType === 'sattvik' : p.kitchenType !== 'sattvik';
     const matchesCat = state.activeCategory==='all' || p.category===state.activeCategory;
     const matchesSearch = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q);
-    return matchesCat && matchesSearch;
+    return matchesKitchen && matchesCat && matchesSearch;
   });
   const grid = document.getElementById('menuGrid');
   if(list.length===0){
@@ -1321,6 +1400,7 @@ function addToCart(product, opts){
   state.cart.push({
     lineId: 'l' + Date.now() + Math.random().toString(16).slice(2),
     productId: product.id, name: product.name, emoji: product.emoji, img: product.img,
+    kitchenType: product.kitchenType || 'standard',
     size: opts.size, crust: opts.crust, crustLabel, extraCheese: opts.extraCheese,
     toppings: opts.toppings||[], toppingLabels,
     qty, instructions: opts.instructions || '', unitPrice, lineTotal: unitPrice*qty
@@ -1401,10 +1481,9 @@ function renderCartScreen(){
     return;
   }
   const t = cartTotals();
-  box.innerHTML = `
-  <div class="cart-layout">
-    <div>
-      ${state.cart.map(item=>`
+  const sattvikItems = state.cart.filter(i=>i.kitchenType==='sattvik');
+  const standardItems = state.cart.filter(i=>i.kitchenType!=='sattvik');
+  const cartItemRow = item => `
         <div class="cart-item">
           <div class="plate">${plateHTML(item)}</div>
           <div style="flex:1;">
@@ -1422,7 +1501,12 @@ function renderCartScreen(){
               </div>
             </div>
           </div>
-        </div>`).join('')}
+        </div>`;
+  box.innerHTML = `
+  <div class="cart-layout">
+    <div>
+      ${sattvikItems.length ? `<div class="cart-kitchen-group-label">🌿 Sattvik &amp; Jain Kitchen</div>` + sattvikItems.map(cartItemRow).join('') : ''}
+      ${standardItems.length ? (sattvikItems.length ? `<div class="cart-kitchen-group-label" style="color:var(--red-dark);">🍕 Bunk And Bite Standard Kitchen</div>` : '') + standardItems.map(cartItemRow).join('') : ''}
     </div>
     <div class="summary-box">
       <h4>Bill Summary</h4>
@@ -1512,7 +1596,9 @@ function renderCheckoutScreen(){
     </div>`).join('');
 
   const t = cartTotals();
+  const hasSattvikItems = state.cart.some(i=>i.kitchenType==='sattvik');
   document.getElementById('checkoutSummaryLines').innerHTML = `
+    ${hasSattvikItems ? `<div class="sattvik-checkout-note">🍃 <b>Sattvik &amp; Jain Kitchen:</b> Your selected Sattvik/Jain items are marked as No Onion &amp; No Garlic. Please verify item-specific dietary details before placing your order.</div>` : ''}
     <div class="sum-row"><span>Items (${state.cart.reduce((s,i)=>s+i.qty,0)})</span><span>${rupee(t.subtotal)}</span></div>
     ${t.discount>0?`<div class="sum-row" style="color:var(--green)"><span>Discount</span><span>-${rupee(t.discount)}</span></div>`:''}
     <div class="sum-row"><span>Delivery Fee</span><span>${t.deliveryFee===0?'FREE':rupee(t.deliveryFee)}</span></div>

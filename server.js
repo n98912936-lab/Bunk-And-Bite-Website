@@ -26,6 +26,7 @@ async function sendOrderEmail(order) {
   const itemsList = order.items
     .map(it => {
       const parts = [];
+      if (it.kitchenType === "sattvik") parts.push("🌿 Sattvik & Jain Kitchen — No Onion, No Garlic");
       if (it.size) parts.push(it.size.charAt(0).toUpperCase() + it.size.slice(1));
       if (it.crustLabel) parts.push(it.crustLabel + " crust");
       if (it.extraCheese) parts.push("Extra Cheese");
